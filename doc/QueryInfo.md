@@ -46,3 +46,7 @@ This query will return the same information as the previous one, but it will als
 ## Current queries
 
 **QPI** library enables you to get the list of currently running queries using `qpi.running_queries` view:
+```
+SELECT *
+FROM qpi.running_queries;
+```

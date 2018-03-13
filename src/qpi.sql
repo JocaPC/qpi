@@ -659,7 +659,7 @@ SELECT
 	[cpu%_idle] = cpu_idle,
     [cpu%_other] = 100 - cpu_sql - cpu_idle,
 	memory_gb = physical_memory_kb / 1024 /1024,
-	plan_cache_gb = (SELECT SUM(size_in_bytes)/1024 /1024 FROM sys.dm_exec_cached_plans),
+	plan_cache_gb = (SELECT SUM(size_in_bytes /1024 /1024 /1024) FROM sys.dm_exec_cached_plans),
 	buffer_pool_gb = (SELECT COUNT_BIG(*) / 128 /1024 FROM sys.dm_os_buffer_descriptors)
    FROM sys.dm_os_sys_info, (
       SELECT  
@@ -675,8 +675,14 @@ SELECT
 		 ) as y
 GO      
    
-
-
+CREATE VIEW qpi.runtime_plan_cache_info
+AS
+SELECT  objtype,
+        memory_gb = SUM(size_in_bytes /1024 /1024 /1024),
+		plan_count = COUNT_BIG(*)
+    FROM sys.dm_exec_cached_plans
+    GROUP BY objtype
+GO
 
 -- https://www.mssqltips.com/sqlservertip/2393/determine-sql-server-memory-use-by-database-and-object/
 CREATE VIEW qpi.db_mem_usage

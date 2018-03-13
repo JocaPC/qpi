@@ -651,7 +651,9 @@ CREATE VIEW qpi.sys_info
 AS
 SELECT cpu_count, hyperthread_ratio,
 physical_cpu_count = cpu_count/hyperthread_ratio,
+socket_count,
 memory_gb = physical_memory_kb / 1024 /1024,
+virtual_memory_gb = virtual_memory_kb / 1024 /1024,
 sqlserver_start_time
 FROM sys.dm_os_sys_info
 GO

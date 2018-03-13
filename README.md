@@ -29,5 +29,7 @@ QPI library enables you to find performance of underlying file system. Find more
 QPI library simplifies query performance analysis. Some useful scripts and scenarios are shown in  [query performance analysis page](doc/QueryPerformanceAnalisys.md).
 
 ## Installation
-QPI library is just a set of views functions and utility tables that you can install on your SQL Server or Azure SQL instance. Currently it supports SQL Server 2016+ version.
+QPI library is just a set of views functions and utility tables that you can install on your SQL Server or Azure SQL instance. Currently, it supports SQL Server 2016+ and Azure SQL Database.
 You can download the [source](src/qpi.sql) and run it in your database.
+
+> Many views depends on Query Store so make sure that Query store is running on your SQL Server.

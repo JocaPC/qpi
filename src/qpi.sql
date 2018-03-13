@@ -410,7 +410,7 @@ AS SELECT
 	database_name = DB_NAME(vfs.database_id),
     vfs.database_id,
 	file_name = [mf].[name],
-	size_gb = mf.size /1024 /1024 * 8,
+	size_gb = CAST(ROUND(mf.size /1024.0 /1024 * 8, 1) AS NUMERIC(10,1)),
     read_latency_ms =
         CASE WHEN [num_of_reads] = 0
             THEN 0 ELSE (CAST(ROUND(1.0 * [io_stall_read_ms] / [num_of_reads], 1) AS numeric(5,1))) END,
@@ -501,7 +501,7 @@ CREATE VIEW qpi.runtime_file_stats
 AS SELECT
 	database_name,
 	file_name,
-	size_gb = mf.size * 8 /1024 /1024,
+	size_gb = CAST(ROUND(mf.size /1024.0 /1024 * 8, 1) AS NUMERIC(10,1)),
 	mbps_read = (c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024.0 / DATEDIFF(second, s.start_time, GETDATE()),
 	mbps_written = (c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024.0 / DATEDIFF(second, s.start_time, GETDATE()),
 	mb_read = (c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024,
@@ -549,7 +549,7 @@ RETURNS TABLE
 AS RETURN (SELECT
 	c.database_name,
 	c.file_name,
-	size_gb = mf.size * 8 /1024 /1024,
+	size_gb = CAST(ROUND(mf.size /1024.0 /1024 * 8, 1) AS NUMERIC(10,1)),
 	mbps_read = (c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024.0 / DATEDIFF(second, s.start_time, c.start_time),
 	mbps_written = (c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024.0 / DATEDIFF(second, s.start_time, c.start_time),
 	mb_read = (c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024,
@@ -635,7 +635,7 @@ AS RETURN (SELECT
 	io_stall_read_ms = c.io_stall_read_ms - s.io_stall_read_ms,
 	io_stall_write_ms = c.io_stall_write_ms - s.io_stall_write_ms,
 	interval_mi = DATEDIFF(minute, s.start_time, c.start_time),
-	size_gb = mf.size * 8 /1024 /1024,
+	size_gb = CAST(ROUND(mf.size /1024.0 /1024 * 8, 1) AS NUMERIC(10,1)),
 	c.database_id
 FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL AS c
 		JOIN sys.master_files AS [mf]

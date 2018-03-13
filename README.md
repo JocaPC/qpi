@@ -2,6 +2,12 @@
 
 Query Performance Insights (QPI) is a collection of useful scripts that enable you find what is happening with your SQL Server. It is a set of views and functions that wrap Query Store and Dynamic Management Views.
 
+## Why I need this kind of library
+
+SQL Server provides great views that we can use to analyze query performance. However, it is hard to see what is happening in the database engine. There are DMVs and Query Store, but when I need to get the answer to the simple questions such as "Did query performance changed after I added an index" or "How many IOPS do we use", I need to dig into Query Store schema, think about every single report, or search for some useful query.
+
+This is the reason why I have collected the most useful queries that find information from underlying system views, and wrapped them in a set of useful views.
+
 ## System information
 
 QPI library enables you to easily find basic system information that describe your SQL Server instance. This library contains views that you can use to find number of CPU, size of memory, information about files, etc. Find more information in [system information page](doc/SystemInfo.md).

@@ -33,6 +33,8 @@ DROP VIEW IF EXISTS qpi.sys_info;
 GO
 DROP VIEW IF EXISTS qpi.runtime_sys_info;
 GO
+DROP VIEW IF EXISTS qpi.runtime_plan_cache_info;
+GO
 DROP VIEW IF EXISTS qpi.db_mem_usage;
 GO
 DROP PROCEDURE IF EXISTS qpi.snapshot_file_stats;

@@ -357,16 +357,12 @@ returns table
 return (
 	select baseline = convert(varchar(16), rsi1.start_time, 20), interval = convert(varchar(16), rsi2.start_time, 20),
 		query_text = t.query_sql_text,
-		--duration = rs1.avg_duration,
 		d_duration = rs2.avg_duration - rs1.avg_duration,
 		d_duration_perc = iif(rs2.avg_duration=0, null, ROUND(100*(1 - rs1.avg_duration/rs2.avg_duration),0)),
-		--cpu_time = rs1.avg_cpu_time,
 		d_cpu_time = rs2.avg_cpu_time - rs1.avg_cpu_time,
 		d_cpu_time_perc = iif(rs2.avg_cpu_time=0, null, ROUND(100*(1 - rs1.avg_cpu_time/rs2.avg_cpu_time),0)),
-		--physical_io_reads = rs1.avg_physical_io_reads,
 		d_physical_io_reads = rs2.avg_physical_io_reads - rs1.avg_physical_io_reads,
 		d_physical_io_reads_perc = iif(rs2.avg_physical_io_reads=0, null, ROUND(100*(1 - rs1.avg_physical_io_reads/rs2.avg_physical_io_reads),0)),
-		--rs1.avg_log_bytes_used,
 		d_log_bytes_used = rs2.avg_log_bytes_used - rs1.avg_log_bytes_used,
 		d_log_bytes_used_perc = iif(rs2.avg_log_bytes_used=0, null, ROUND(100*(1 - rs1.avg_log_bytes_used/rs2.avg_log_bytes_used),0)),		
 		q.query_text_id, q.query_id, p.plan_id 
@@ -414,16 +410,16 @@ AS SELECT
 	database_name = DB_NAME(vfs.database_id),
     vfs.database_id,
 	file_name = [mf].[name],
-	size_gb = mf.size * 8 /1024 /1024,
+	size_gb = mf.size /1024 /1024 * 8,
     read_latency_ms =
         CASE WHEN [num_of_reads] = 0
-            THEN 0 ELSE ([io_stall_read_ms] / [num_of_reads]) END,
+            THEN 0 ELSE (CAST(ROUND(1.0 * [io_stall_read_ms] / [num_of_reads], 1) AS numeric(5,1))) END,
     write_latency_ms =
         CASE WHEN [num_of_writes] = 0
-            THEN 0 ELSE ([io_stall_write_ms] / [num_of_writes]) END,
+            THEN 0 ELSE (CAST(ROUND(1.0 * [io_stall_write_ms] / [num_of_writes], 1) AS numeric(5,1)))  END,
     latency =
         CASE WHEN ([num_of_reads] = 0 AND [num_of_writes] = 0)
-            THEN 0 ELSE ([io_stall] / ([num_of_reads] + [num_of_writes])) END,
+            THEN 0 ELSE (CAST(ROUND(1.0 * [io_stall] / ([num_of_reads] + [num_of_writes]), 1) AS numeric(5,1))) END,
     bytes_per_read =
         CASE WHEN [num_of_reads] = 0
             THEN 0 ELSE ([num_of_bytes_read] / [num_of_reads]) END,
@@ -517,13 +513,13 @@ AS SELECT
 	num_of_writes = c.num_of_writes - s.num_of_writes,
 	read_latency_ms =
         CASE WHEN (c.num_of_reads - s.num_of_reads) = 0
-            THEN 0 ELSE ((c.io_stall_read_ms - s.io_stall_read_ms) / (c.num_of_reads - s.num_of_reads)) END,
+            THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall_read_ms - s.io_stall_read_ms) / (c.num_of_reads - s.num_of_reads), 1) AS numeric(5,1))) END,
     write_latency_ms =
         CASE WHEN (c.num_of_writes - s.num_of_writes) = 0
-            THEN 0 ELSE ((c.io_stall_write_ms - s.io_stall_write_ms) / (c.num_of_writes - s.num_of_writes)) END,
+            THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall_write_ms - s.io_stall_write_ms) / (c.num_of_writes - s.num_of_writes), 1) AS numeric(5,1))) END,
     latency =
         CASE WHEN ( (c.num_of_reads - s.num_of_reads) = 0 AND (c.num_of_writes - s.num_of_writes) = 0)
-            THEN 0 ELSE ((c.io_stall - s.io_stall) / ((c.num_of_reads - s.num_of_reads) + (c.num_of_writes - s.num_of_writes))) END,
+            THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall - s.io_stall) / ((c.num_of_reads - s.num_of_reads) + (c.num_of_writes - s.num_of_writes)), 1) AS numeric(5,1))) END,
     kb_per_read =
         CASE WHEN (c.num_of_reads - s.num_of_reads) = 0
             THEN 0 ELSE ((c.num_of_bytes_read - s.num_of_bytes_read) / (c.num_of_reads - s.num_of_reads))/1024.0 END,
@@ -565,13 +561,16 @@ AS RETURN (SELECT
 	num_of_writes = c.num_of_writes - s.num_of_writes,
 	latency_read_ms =
         CASE WHEN (c.num_of_reads - s.num_of_reads) = 0
-            THEN 0 ELSE ((c.io_stall_read_ms - s.io_stall_read_ms) / (c.num_of_reads - s.num_of_reads)) END,
+            THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall_read_ms - s.io_stall_read_ms) / (c.num_of_reads - s.num_of_reads), 1) AS numeric(5,1))) END,
     latency_write_ms =
         CASE WHEN (c.num_of_writes - s.num_of_writes) = 0
-            THEN 0 ELSE ((c.io_stall_write_ms - s.io_stall_write_ms) / (c.num_of_writes - s.num_of_writes)) END,
+            THEN 0 ELSE ((CAST(ROUND(
+							1.0 * (c.io_stall_write_ms - s.io_stall_write_ms) /
+									 (c.num_of_writes - s.num_of_writes)
+									 , 1) AS numeric(5,1)))) END,
     latency_ms =
         CASE WHEN ( (c.num_of_reads - s.num_of_reads) = 0 AND (c.num_of_writes - s.num_of_writes) = 0)
-            THEN 0 ELSE ((c.io_stall - s.io_stall) / ((c.num_of_reads - s.num_of_reads) + (c.num_of_writes - s.num_of_writes))) END,
+            THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall - s.io_stall) / ((c.num_of_reads - s.num_of_reads) + (c.num_of_writes - s.num_of_writes)), 1) AS numeric(5,1))) END,
     kb_per_read =
         CASE WHEN (c.num_of_reads - s.num_of_reads) = 0
             THEN 0 ELSE ((c.num_of_bytes_read - s.num_of_bytes_read) / (c.num_of_reads - s.num_of_reads))/1024.0 END,
@@ -612,13 +611,16 @@ AS RETURN (SELECT
 	num_of_writes = c.num_of_writes - s.num_of_writes,
 	latency_read_ms =
         CASE WHEN (c.num_of_reads - s.num_of_reads) = 0
-            THEN 0 ELSE ((c.io_stall_read_ms - s.io_stall_read_ms) / (c.num_of_reads - s.num_of_reads)) END,
+            THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall_read_ms - s.io_stall_read_ms) / (c.num_of_reads - s.num_of_reads), 1) AS numeric(5,1))) END,
     latency_write_ms =
         CASE WHEN (c.num_of_writes - s.num_of_writes) = 0
-            THEN 0 ELSE ((c.io_stall_write_ms - s.io_stall_write_ms) / (c.num_of_writes - s.num_of_writes)) END,
+            THEN 0 ELSE ((CAST(ROUND(
+							1.0 * (c.io_stall_write_ms - s.io_stall_write_ms) /
+									 (c.num_of_writes - s.num_of_writes)
+									 , 1) AS numeric(5,1)))) END,
     latency_ms =
         CASE WHEN ( (c.num_of_reads - s.num_of_reads) = 0 AND (c.num_of_writes - s.num_of_writes) = 0)
-            THEN 0 ELSE ((c.io_stall - s.io_stall) / ((c.num_of_reads - s.num_of_reads) + (c.num_of_writes - s.num_of_writes))) END,
+            THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall - s.io_stall) / ((c.num_of_reads - s.num_of_reads) + (c.num_of_writes - s.num_of_writes)), 1) AS numeric(5,1))) END,
     kb_per_read =
         CASE WHEN (c.num_of_reads - s.num_of_reads) = 0
             THEN 0 ELSE ((c.num_of_bytes_read - s.num_of_bytes_read) / (c.num_of_reads - s.num_of_reads))/1024.0 END,
@@ -660,9 +662,10 @@ SELECT
 	[cpu%_sql] = cpu_sql,
 	[cpu%_idle] = cpu_idle,
     [cpu%_other] = 100 - cpu_sql - cpu_idle,
-	memory_gb = physical_memory_kb / 1024 /1024,
+	total_memory_gb = physical_memory_kb / 1024 /1024,
 	plan_cache_gb = (SELECT SUM(size_in_bytes /1024 /1024 /1024) FROM sys.dm_exec_cached_plans),
-	buffer_pool_gb = (SELECT COUNT_BIG(*) / 128 /1024 FROM sys.dm_os_buffer_descriptors)
+	buffer_pool_gb = (SELECT COUNT_BIG(*) / 128 /1024 FROM sys.dm_os_buffer_descriptors),
+	storage_gb = (SELECT sum(CAST(size as bigint) * 8 /1024 /1024) from master.sys.master_files)
    FROM sys.dm_os_sys_info, (
       SELECT  
          cpu_idle = record.value('(./Record/SchedulerMonitorEvent/SystemHealth/SystemIdle)[1]', 'int'),

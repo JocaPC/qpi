@@ -15,7 +15,8 @@ FROM qpi.query_texts;
 
 | Column | Description |
 | --- | --- |
-| query_text | Text of T-SQL command. |
+| text | Text of T-SQL command. |
+| params | Parameter values used in the T-SQL command. |
 | query_text_id | Unique id of the text in T-SQL command. | 
 | queries | Comma separated list of (query id, context settings id) pairs for all queries that match the query text. |
 
@@ -31,7 +32,8 @@ FROM qpi.queries;
 | Column | Description |
 | --- | --- |
 | query_id | Unique id of the query. |
-| query_text | Text of T-SQL command. |
+| text | Text of T-SQL command. |
+| params | Parameter values used in the T-SQL command. |
 | query_text_id | Unique id of the text in T-SQL command. | 
 | context_setting_id | Id of the context setting that describes the environment parameters that was configured while the query was executed. |
 

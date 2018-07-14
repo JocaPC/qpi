@@ -38,6 +38,8 @@ DROP VIEW IF EXISTS qpi.query_texts;
 GO
 DROP VIEW IF EXISTS qpi.query_stats;
 GO
+DROP VIEW IF EXISTS qpi.query_stats_all;
+GO
 DROP VIEW IF EXISTS qpi.query_plan_stats;
 GO
 DROP VIEW IF EXISTS qpi.query_plan_stats_ex;
@@ -281,7 +283,7 @@ where @date is null or @date between rsi.start_time and rsi.end_time
 );
 go
 CREATE   VIEW qpi.query_plan_wait_stats
-AS SELECT * FROM  qpi.query_plan_wait_stats_as_of(NULL);
+AS SELECT * FROM  qpi.query_plan_wait_stats_as_of(GETDATE());
 GO
 
 CREATE OR ALTER  function qpi.query_plan_stats_as_of(@date datetime2)
@@ -311,8 +313,9 @@ from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
 	join sys.query_store_plan p on p.query_id = q.query_id
 	join sys.query_store_runtime_stats rs on rs.plan_id = p.plan_id
-	join sys.query_store_runtime_stats_interval rsi on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
-where (@date between rsi.start_time and rsi.end_time)
+	join sys.query_store_runtime_stats_interval rsi 
+			on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
+where (@date is null or @date between rsi.start_time and rsi.end_time)
 
 );
 GO
@@ -336,7 +339,7 @@ from sys.query_store_query_text t
 	join sys.query_store_plan p on p.query_id = q.query_id
 	join sys.query_store_runtime_stats rs on rs.plan_id = p.plan_id
 	join sys.query_store_runtime_stats_interval rsi on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
-where @date between rsi.start_time and rsi.end_time 
+where @date is null or @date between rsi.start_time and rsi.end_time 
 );
 GO
 
@@ -352,7 +355,7 @@ returns table
 return (
 
 WITH query_stats as (
-SELECT	qps.query_id,
+SELECT	qps.query_id, execution_type_desc,
 		duration_s = SUM(duration_s),
 		count_executions = SUM(count_executions),
 		cpu_time_s = SUM(cpu_time_s),
@@ -366,7 +369,7 @@ SELECT	qps.query_id,
 		start_time = MIN(start_time),
 		interval_mi = MIN(interval_mi)
 FROM qpi.query_plan_stats_as_of(@date) qps 
-GROUP BY query_id
+GROUP BY query_id, execution_type_desc
 )
 SELECT  text =  IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text),
 		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ''),
@@ -383,6 +386,9 @@ GO
 
 CREATE   VIEW qpi.query_stats
 AS SELECT * FROM  qpi.query_stats_as_of(GETDATE());
+GO
+CREATE   VIEW qpi.query_stats_all
+AS SELECT * FROM  qpi.query_stats_as_of(NULL);
 GO
 
 --- Query comparison

@@ -5,24 +5,7 @@ This library provides wrapper views that are using Query Store views, so Query S
 
 ## Query information
 
-QPI library enables you to easily get information about the queries that have been executing. `qpi.query_texts` view returns information about all know queries that are executed in past:
-
-```
-SELECT *
-FROM qpi.query_texts;
-```
-`qpi.query_texts` view returns the following information:
-
-| Column | Description |
-| --- | --- |
-| text | Text of T-SQL command. |
-| params | Parameter values used in the T-SQL command. |
-| query_text_id | Unique id of the text in T-SQL command. | 
-| queries | Comma separated list of (query id, context settings id) pairs for all queries that match the query text. |
-
-> One T-SQL query text might have several actual queries in **Query Store** terminology because the same query text might be executed under different conditions. This is the reason why we have a list of all possible query ids for one query text.
-
-In order to get the information about the particular queries, you can use the following view:
+QPI library enables you to easily get information about the queries that have been executing. In order to get the information about the particular queries, you can use the following view:
 ```
 SELECT *
 FROM qpi.queries;
@@ -45,10 +28,29 @@ FROM qpi.queries_ex q
 
 This query will return the same information as the previous one, but it will also include context settings options. Function `qpi.decode_options( set_options )` will decode context settings options.
 
-## Current queries
+## Query texts
 
-**QPI** library enables you to get the list of currently running queries using `qpi.running_queries` view:
+`qpi.query_texts` view returns information about all know query texts that are executed in the past:
+
 ```
 SELECT *
-FROM qpi.running_queries;
+FROM qpi.query_texts;
+```
+`qpi.query_texts` view returns the following information:
+
+| Column | Description |
+| --- | --- |
+| text | Text of T-SQL command. |
+| params | Parameter values used in the T-SQL command. |
+| query_text_id | Unique id of the text in T-SQL command. | 
+| queries | Comma separated list of (query id, context settings id) pairs for all queries that match the query text. |
+
+> One T-SQL query text might have several actual queries in **Query Store** terminology because the same query text might be executed under different conditions. This is the reason why we have a list of all possible query ids for one query text.
+
+## Runtime query stats
+
+**QPI** library enables you to get the list of currently running queries using `qpi.dm_queries` view:
+```
+SELECT *
+FROM qpi.dm_queries;
 ```

@@ -2,6 +2,20 @@
 --	SQLServer - Query Performance Insights
 --	Author: Jovan Popovic
 --------------------------------------------------------------------------------
+--TODO: https://blogs.sentryone.com/allenwhite/sql-server-performance-counters-to-monitor/
+--------------------------------------------------------------------------------
+--	File Statistics
+--------------------------------------------------------------------------------
+DROP PROCEDURE IF EXISTS qpi.snapshot_file_stats;
+GO
+DROP VIEW IF EXISTS qpi.file_stats;
+GO
+DROP VIEW IF EXISTS qpi.file_stats_snapshots
+GO
+DROP FUNCTION IF EXISTS qpi.file_stats_as_of;
+GO
+DROP FUNCTION IF EXISTS qpi.file_stats_at;
+GO
 BEGIN TRY
 	EXEC('ALTER TABLE qpi.dm_io_virtual_file_stats_snapshot 
 			SET (SYSTEM_VERSIONING = OFF)');
@@ -11,61 +25,65 @@ DROP TABLE IF EXISTS qpi.dm_io_virtual_file_stats_snapshot_history;
 GO
 DROP TABLE IF EXISTS qpi.dm_io_virtual_file_stats_snapshot;
 GO
-DROP VIEW IF EXISTS qpi.file_stats;
-GO
-DROP VIEW IF EXISTS qpi.runtime_file_stats;
-GO
+--------------------------------------------------------------------------------
+--	Query info
+--------------------------------------------------------------------------------
 DROP VIEW IF EXISTS qpi.queries;
 GO
 DROP VIEW IF EXISTS qpi.queries_ex;
 GO
-DROP VIEW IF EXISTS qpi.running_queries;
+DROP VIEW IF EXISTS qpi.dm_queries;
 GO
 DROP VIEW IF EXISTS qpi.query_texts;
 GO
 DROP VIEW IF EXISTS qpi.query_stats;
 GO
-DROP VIEW IF EXISTS qpi.query_stats_ex;
+DROP VIEW IF EXISTS qpi.query_plan_stats;
 GO
-DROP VIEW IF EXISTS qpi.query_wait_stats;
+DROP VIEW IF EXISTS qpi.query_plan_stats_ex;
 GO
+DROP VIEW IF EXISTS qpi.dm_query_stats;
+GO
+DROP VIEW IF EXISTS qpi.query_plan_wait_stats;
+GO
+DROP FUNCTION IF EXISTS qpi.query_stats_as_of;
+GO
+DROP FUNCTION IF EXISTS qpi.query_plan_stats_as_of;
+GO
+DROP FUNCTION IF EXISTS qpi.query_plan_stats_ex_as_of;
+GO
+DROP FUNCTION IF EXISTS qpi.query_plan_wait_stats_as_of;
+GO
+DROP FUNCTION IF EXISTS qpi.compare_query_stats_on_intervals;
+GO
+DROP FUNCTION IF EXISTS qpi.query_plan_stats_diff_on_intervals;
+GO
+DROP FUNCTION IF EXISTS qpi.compare_query_plans;
+GO
+DROP FUNCTION IF EXISTS qpi.query_wait_stats_as_of;
+GO
+--------------------------------------------------------------------------------
+--	Resource info
+--------------------------------------------------------------------------------
 DROP VIEW IF EXISTS qpi.sys_info;
 GO
-DROP VIEW IF EXISTS qpi.runtime_sys_info;
+DROP VIEW IF EXISTS qpi.dm_cpu_usage;
 GO
-DROP VIEW IF EXISTS qpi.runtime_plan_cache_info;
+DROP VIEW IF EXISTS qpi.dm_mem_usage;
 GO
-DROP VIEW IF EXISTS qpi.db_mem_usage;
+DROP VIEW IF EXISTS qpi.dm_db_mem_usage;
 GO
-DROP PROCEDURE IF EXISTS qpi.snapshot_file_stats;
+DROP VIEW IF EXISTS qpi.dm_mem_plan_cache_info;
 GO
 DROP FUNCTION IF EXISTS qpi.decode_options;
 GO
 DROP FUNCTION IF EXISTS qpi.ago;
 GO
-DROP FUNCTION IF EXISTS qpi.ago2;
+DROP FUNCTION IF EXISTS qpi.ddhhmm;
 GO
 DROP FUNCTION IF EXISTS qpi.us2min;
 GO
 DROP FUNCTION IF EXISTS qpi.compare_context_settings;
-GO
-DROP FUNCTION IF EXISTS qpi.runtime_stats_on;
-GO
-DROP FUNCTION IF EXISTS qpi.query_stats_on;
-GO
-DROP FUNCTION IF EXISTS qpi.query_stats_ex_on;
-GO
-DROP FUNCTION IF EXISTS qpi.compare_query_stats_on_intervals;
-GO
-DROP FUNCTION IF EXISTS qpi.query_plan_stats_diff_between;
-GO
-DROP FUNCTION IF EXISTS qpi.compare_query_plans;
-GO
-DROP FUNCTION IF EXISTS qpi.query_wait_stats_on;
-GO
-DROP FUNCTION IF EXISTS qpi.runtime_file_stats_on;
-GO
-DROP FUNCTION IF EXISTS qpi.runtime_file_stats_at;
 GO
 DROP SCHEMA IF EXISTS qpi;
 GO
@@ -89,11 +107,11 @@ AS BEGIN RETURN DATEADD(day, - @days,
 					) END;
 GO
 ---
----	SELECT qpi.ago2(21015) => GETDATE() - ( 2 days 10 hours 15 min)
+---	SELECT qpi.ddhhmm(21015) => GETDATE() - ( 2 days 10 hours 15 min)
 ---
-CREATE FUNCTION qpi.ago2(@time int)
+CREATE FUNCTION qpi.ddhhmm(@time int)
 RETURNS datetime2
-AS BEGIN RETURN DATEADD(DAY, - (@time %10000), 
+AS BEGIN RETURN DATEADD(DAY, - ((@time /10000) %100), 
 					DATEADD(HOUR, - (@time /100) %100,
 						DATEADD(MINUTE, - (@time %100), GETDATE())
 						)						
@@ -181,10 +199,12 @@ from sys.query_store_query_text t
 group by query_sql_text, q.query_text_id
 GO
 
-CREATE VIEW qpi.running_queries
+-- The list of currently executing queries that are probably not in Query Store.
+CREATE OR ALTER VIEW qpi.dm_queries
 AS
 SELECT  
-		text,
+		text =  IIF(LEFT(text,1) = '(', TRIM(')' FROM SUBSTRING( text, (PATINDEX( '%)[^,]%', text))+1, LEN(text))), text),
+		params = IIF(LEFT(text,1) = '(', SUBSTRING( text, 0, (PATINDEX( '%)[^,]%', text))+1), ''),
 		execution_type_desc = status COLLATE Latin1_General_CS_AS,
 		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
 		elapsed_time_s = total_elapsed_time /1000.0, 
@@ -206,13 +226,49 @@ SELECT
 		end_time = null
 FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
-WHERE text NOT LIKE '%qpi.running_queries%'
+WHERE text NOT LIKE '%qpi.dm_queries%'
 GO
 
-create   function qpi.query_wait_stats_on (@date datetime2)
+------------------------------------------------------------------------------------
+--	Query performance statistics.
+------------------------------------------------------------------------------------
+
+-- Returns the stats for the currently running queries.
+CREATE   VIEW qpi.dm_query_stats
+AS
+SELECT  
+		text =  IIF(LEFT(t.text,1) = '(', TRIM(')' FROM SUBSTRING( t.text, (PATINDEX( '%)[^,]%', t.text))+1, LEN(t.text))), t.text),
+		params = IIF(LEFT(t.text,1) = '(', SUBSTRING( t.text, 0, (PATINDEX( '%)[^,]%', t.text))+1), ''),
+		execution_type_desc = status COLLATE Latin1_General_CS_AS,
+		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
+		elapsed_time_s = total_elapsed_time /1000.0, 
+		cpu_time_s = cpu_time /1000.0, 		 
+		logical_io_reads = logical_reads,
+		logical_io_writes = writes,
+		physical_io_reads = reads, 
+		num_physical_io_reads = NULL, 
+		clr_time = NULL,
+		dop,
+		row_count, 
+		memory_mb = granted_query_memory *8 /1024, 
+		log_bytes = NULL,
+		tempdb_space = NULL,
+		query_text_id = NULL, query_id = NULL, plan_id = NULL,
+		database_id, connection_id, session_id, request_id, command,
+		interval_mi = null,
+		start_time,
+		end_time = null
+FROM    sys.dm_exec_requests
+		CROSS APPLY sys.dm_exec_sql_text(sql_handle) t
+GO
+
+create   function qpi.query_plan_wait_stats_as_of(@date datetime2)
 returns table
 as return (
-select q.query_id, query_text = t.query_sql_text, rsi.start_time, rsi.end_time,
+select	q.query_id, 
+		text =  IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text),
+		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ''),
+		rsi.start_time, rsi.end_time,
 		ws.wait_stats_id, ws.plan_id, ws.runtime_stats_interval_id,
 		ws.wait_category_desc, ws.execution_type_desc, wait_time_s = ws.avg_query_wait_time_ms /1000.0,
 		interval_mi = datediff(mi, rsi.start_time, rsi.end_time)
@@ -224,89 +280,113 @@ from sys.query_store_query_text t
 where @date is null or @date between rsi.start_time and rsi.end_time 
 );
 go
-CREATE   VIEW qpi.query_wait_stats
-AS SELECT * FROM  qpi.query_wait_stats_on (NULL);
+CREATE   VIEW qpi.query_plan_wait_stats
+AS SELECT * FROM  qpi.query_plan_wait_stats_as_of(NULL);
 GO
-go
-CREATE   function qpi.query_stats_on (@date datetime2 = NULL)
+
+CREATE OR ALTER  function qpi.query_plan_stats_as_of(@date datetime2)
 returns table
 as return (
-select  query_text = t.query_sql_text,
-		execution_type_desc = rs.execution_type_desc COLLATE Latin1_General_CS_AS,
-		rs.first_execution_time, rs.last_execution_time, rs.count_executions, 
-		duration_s = rs.avg_duration /1000.0 /1000,
-		cpu_time_s = rs.avg_cpu_time /1000.0 /1000,
-		logical_io_reads = rs.avg_logical_io_reads,
-        logical_io_writes = rs.avg_logical_io_writes, 
-		physical_io_reads = rs.avg_physical_io_reads,
-		num_physical_io_reads = rs.avg_num_physical_io_reads,
-		clr_time = rs.avg_clr_time,
-		dop = rs.avg_dop,
-		memory_mb = rs.avg_query_max_used_memory /8 /1000,
-		row_count = rs.avg_rowcount,
-		log_bytes = rs.avg_log_bytes_used,
-		tempdb_space = rs.avg_tempdb_space_used,
-		t.query_text_id, q.query_id, p.plan_id,
-		database_id = NULL, connection_id = NULL, session_id = NULL, request_id = NULL, command = NULL,
+select	t.query_text_id, q.query_id, 
+		text =  IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text),
+		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ''),
+		rs.plan_id,
+		rs.execution_type_desc, 
+        rs.count_executions,
+        duration_s = rs.avg_duration /1000.0 /1000.0, 
+        cpu_time_s = rs.avg_cpu_time /1000.0 /1000.0,
+        logical_io_reads_kb = rs.avg_logical_io_reads * 8,
+        logical_io_writes_kb = rs.avg_logical_io_writes * 8, 
+        physical_io_reads_kb = rs.avg_physical_io_reads * 8, 
+        clr_time_s = rs.avg_clr_time /1000.0 /1000.0, 
+        max_used_memory_mb = rs.avg_query_max_used_memory * 8.0 /1000,
+        num_physical_io_reads = rs.avg_num_physical_io_reads, 
+        log_bytes_used_kb = rs.avg_log_bytes_used /1000.0,
+        rs.avg_tempdb_space_used,
+		start_time = convert(varchar(16), rsi.start_time, 20),
+		end_time = convert(varchar(16), rsi.end_time, 20),
 		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
-		rsi.start_time,
-		rsi.end_time
+		q.context_settings_id
 from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
 	join sys.query_store_plan p on p.query_id = q.query_id
 	join sys.query_store_runtime_stats rs on rs.plan_id = p.plan_id
-	join sys.query_store_runtime_stats_interval rsi
-		on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
-where @date is null or @date between rsi.start_time and rsi.end_time
-union ALL
-SELECT  
-		query_text = text,
-		execution_type_desc = status COLLATE Latin1_General_CS_AS,
-		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
-		elapsed_time_s = total_elapsed_time /1000.0, 
-		cpu_time_s = cpu_time /1000.0, 		 
-		logical_io_reads = logical_reads,
-		logical_io_writes = writes,
-		physical_io_reads = reads, 
-		num_physical_io_reads = NULL, 
-		clr_time = NULL,
-		dop,
-		row_count, 
-		memory_mb = granted_query_memory *8 /1000, 
-		log_bytes = NULL,
-		tempdb_space = NULL,
-		query_text_id = NULL, query_id = NULL, plan_id = NULL,
-		database_id, connection_id, session_id, request_id, command,
-		interval_mi = null,
-		start_time,
-		end_time = null
-FROM    sys.dm_exec_requests
-		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
-where @date is null or start_time < @date
+	join sys.query_store_runtime_stats_interval rsi on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
+where (@date between rsi.start_time and rsi.end_time)
+
 );
 GO
 
-CREATE   VIEW qpi.query_stats
-AS SELECT * FROM  qpi.query_stats_on (NULL);
+CREATE OR ALTER VIEW qpi.query_plan_stats
+AS SELECT * FROM qpi.query_plan_stats_as_of(GETDATE());
 GO
 
-CREATE   function qpi.query_stats_ex_on (@date datetime2)
+-- Returns all query plan statistics without currently running values.
+CREATE   function qpi.query_plan_stats_ex_as_of(@date datetime2)
 returns table
 as return (
-select t.query_text_id, q.query_id, query_text = t.query_sql_text, rsi.start_time, rsi.end_time, rs.*,
+select	q.query_id, 
+		text =  IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text),
+		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ''),
+		t.query_text_id, rsi.start_time, rsi.end_time,
+		rs.*,
 		interval_mi = datediff(mi, rsi.start_time, rsi.end_time)
 from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
 	join sys.query_store_plan p on p.query_id = q.query_id
 	join sys.query_store_runtime_stats rs on rs.plan_id = p.plan_id
 	join sys.query_store_runtime_stats_interval rsi on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
-where @date is null or @date between rsi.start_time and rsi.end_time 
+where @date between rsi.start_time and rsi.end_time 
 );
 GO
 
-CREATE   VIEW qpi.query_stats_ex
-AS SELECT * FROM  qpi.query_stats_ex_on (NULL);
+CREATE   VIEW qpi.query_plan_stats_ex
+AS SELECT * FROM qpi.query_plan_stats_ex_as_of(GETDATE());
 GO
+
+-- the most important view: query statistics:
+GO
+-- Returns statistics about all queries as of specified time.
+CREATE FUNCTION qpi.query_stats_as_of(@date datetime2)
+returns table
+return (
+
+WITH query_stats as (
+SELECT	qps.query_id,
+		duration_s = SUM(duration_s),
+		count_executions = SUM(count_executions),
+		cpu_time_s = SUM(cpu_time_s),
+		logical_io_reads_kb = SUM(logical_io_reads_kb),
+		logical_io_writes_kb = SUM(logical_io_writes_kb),
+		physical_io_reads_kb = SUM(physical_io_reads_kb),
+		clr_time_s = SUM(clr_time_s),
+		num_physical_io_reads = SUM(num_physical_io_reads),
+		log_bytes_used_kb = SUM(log_bytes_used_kb),
+		avg_tempdb_space_used = SUM(avg_tempdb_space_used),
+		start_time = MIN(start_time),
+		interval_mi = MIN(interval_mi)
+FROM qpi.query_plan_stats_as_of(@date) qps 
+GROUP BY query_id
+)
+SELECT  text =  IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text),
+		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ''),
+		qs.*,
+		t.query_text_id
+FROM query_stats qs
+	join sys.query_store_query q  
+	on q.query_id = qs.query_id
+	join sys.query_store_query_text t
+	on q.query_text_id = t.query_text_id
+	
+)
+GO
+
+CREATE   VIEW qpi.query_stats
+AS SELECT * FROM  qpi.query_stats_as_of(GETDATE());
+GO
+
+--- Query comparison
+
 create   function qpi.compare_query_stats_on_intervals (@query_id int, @date1 datetime2, @date2 datetime2)
 returns table
 return (
@@ -315,7 +395,7 @@ return (
 	(select [key], value
 	from openjson(
 	(select *
-		from qpi.query_stats_on(@date1)
+		from qpi.query_stats_as_of(@date1)
 		where query_id = @query_id
 		for json path, without_array_wrapper)
 	)) as a ([key], value)
@@ -323,7 +403,7 @@ return (
 	(select [key], value
 	from openjson(
 	(select *
-		from qpi.query_stats_on(@date2)
+		from qpi.query_stats_as_of(@date2)
 		where query_id = @query_id
 		for json path, without_array_wrapper)
 	)) as b ([key], value)
@@ -331,6 +411,8 @@ return (
 	where a.value <> b.value
 );
 GO
+
+
 CREATE     FUNCTION qpi.compare_query_plans (@plan_id1 int, @plan_id2 int)
 returns table
 return (
@@ -358,7 +440,7 @@ GO
 
 GO
 
-create   function qpi.query_plan_stats_diff_between (@date1 datetime2, @date2 datetime2)
+create   function qpi.query_plan_stats_diff_on_intervals (@date1 datetime2, @date2 datetime2)
 returns table
 return (
 	select baseline = convert(varchar(16), rsi1.start_time, 20), interval = convert(varchar(16), rsi2.start_time, 20),
@@ -384,36 +466,12 @@ and rsi1.start_time <= @date1 and @date1 < rsi1.end_time
 and (@date2 is null or rsi2.start_time <= @date2 and @date2 < rsi2.end_time)
 );
 GO
-
-CREATE FUNCTION qpi.runtime_stats_on(@date datetime2)
-returns table
-return (
-SELECT  rs.execution_type_desc, 
-        rs.count_executions,
-        duration_s = rs.avg_duration /1000.0 /1000.0, 
-        cpu_time_s = rs.avg_cpu_time /1000.0 /1000.0,
-        logical_io_reads_kb = rs.avg_logical_io_reads * 8,
-        logical_io_writes_kb = rs.avg_logical_io_writes * 8, 
-        physical_io_reads_kb = rs.avg_physical_io_reads * 8, 
-        clr_time_s = rs.avg_clr_time /1000.0 /1000.0, 
-        max_used_memory_mb = rs.avg_query_max_used_memory * 8.0 /1000,
-        num_physical_io_reads = rs.avg_num_physical_io_reads, 
-        log_bytes_used_kb = rs.avg_log_bytes_used /1000.0,
-        rs.avg_tempdb_space_used,
-        start_time = convert(varchar(16), rsi.start_time, 20),
-        rs.plan_id,
-		interval_mi = datediff(mi, rsi.start_time, rsi.end_time)
-FROM            sys.query_store_runtime_stats AS rs INNER JOIN
-                         sys.query_store_runtime_stats_interval AS rsi ON rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
-where @date is null or (rsi.start_time <= @date and @date < rsi.end_time)
-)
-
 GO
-
+/*
 -- https://www.sqlskills.com/blogs/paul/how-to-examine-io-subsystem-latencies-from-within-sql-server/
-CREATE VIEW qpi.file_stats
+CREATE VIEW qpi.file_info
 AS SELECT
-	database_name = DB_NAME(vfs.database_id),
+	db_name = DB_NAME(vfs.database_id),
     vfs.database_id,
 	file_name = [mf].[name],
 	size_gb = CAST(ROUND(mf.size /1024.0 /1024 * 8, 1) AS NUMERIC(10,1)),
@@ -445,9 +503,10 @@ JOIN sys.master_files AS [mf]
     ON [vfs].[database_id] = [mf].[database_id]
     AND [vfs].[file_id] = [mf].[file_id]
 GO
+*/
 
 CREATE TABLE qpi.dm_io_virtual_file_stats_snapshot (
-	[database_name] sysname NULL,
+	[db_name] sysname NULL,
 	[database_id] [smallint] NOT NULL,
 	[file_name] [sysname] NOT NULL,
 	[file_id] [smallint] NOT NULL,
@@ -469,16 +528,16 @@ GO
 CREATE INDEX ix_file_snapshot_interval_history
 	ON qpi.dm_io_virtual_file_stats_snapshot_history(end_time);
 GO
-CREATE PROCEDURE qpi.snapshot_file_stats @title nvarchar(200) = NULL, @database_name sysname = null, @file_name sysname = null
+CREATE PROCEDURE qpi.snapshot_file_stats @title nvarchar(200) = NULL, @db_name sysname = null, @file_name sysname = null
 AS BEGIN
 MERGE qpi.dm_io_virtual_file_stats_snapshot AS Target
 USING (
-	SELECT database_name = DB_NAME(vfs.database_id),vfs.database_id,
+	SELECT db_name = DB_NAME(vfs.database_id),vfs.database_id,
 		file_name = [mf].[name],[vfs].[file_id],
 		[io_stall_read_ms],[io_stall_write_ms],[io_stall],
 		[num_of_bytes_read], [num_of_bytes_written],
 		[num_of_reads], [num_of_writes]
-	FROM sys.dm_io_virtual_file_stats (db_id(@database_name),NULL) AS [vfs]
+	FROM sys.dm_io_virtual_file_stats (db_id(@db_name),NULL) AS [vfs]
 	JOIN sys.master_files AS [mf] ON
 		[vfs].[database_id] = [mf].[database_id] AND [vfs].[file_id] = [mf].[file_id]
 		AND (@file_name IS NULL OR [mf].[name] = @file_name)
@@ -493,39 +552,37 @@ UPDATE SET
 	Target.[num_of_bytes_written] = Source.[num_of_bytes_written] ,-- Target.[num_of_bytes_written],
 	Target.[num_of_reads] = Source.[num_of_reads] ,-- Target.[num_of_reads],
 	Target.[num_of_writes] = Source.[num_of_writes] ,-- Target.[num_of_writes],
-	Target.title = ISNULL(@title, CAST( GETDATE() as NVARCHAR(50))),
+	Target.title = ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)),
 	Target.interval_mi = DATEDIFF(mi, Target.start_time, GETDATE())
 WHEN NOT MATCHED BY TARGET THEN
-INSERT (database_name,database_id,file_name,[file_id],
+INSERT (db_name,database_id,file_name,[file_id],
     [io_stall_read_ms],[io_stall_write_ms],[io_stall],
     [num_of_bytes_read], [num_of_bytes_written],
     [num_of_reads], [num_of_writes], title)
-VALUES (Source.database_name,Source.database_id,Source.file_name,Source.[file_id],Source.[io_stall_read_ms],Source.[io_stall_write_ms],Source.[io_stall],Source.[num_of_bytes_read],Source.[num_of_bytes_written],Source.[num_of_reads],Source.[num_of_writes],ISNULL(@title, CAST( GETDATE() as NVARCHAR(50)))); 
+VALUES (Source.db_name,Source.database_id,Source.file_name,Source.[file_id],Source.[io_stall_read_ms],Source.[io_stall_write_ms],Source.[io_stall],Source.[num_of_bytes_read],Source.[num_of_bytes_written],Source.[num_of_reads],Source.[num_of_writes],ISNULL(@title, CAST( GETDATE() as NVARCHAR(50)))); 
 END
 GO
-CREATE VIEW qpi.runtime_file_stats
+CREATE OR ALTER VIEW qpi.file_stats
 AS SELECT
-	database_name,
-	file_name,
+	db_name = DB_NAME(mf.database_id),
+	file_name = mf.name,
 	size_gb = CAST(ROUND(mf.size /1024.0 /1024 * 8, 1) AS NUMERIC(10,1)),
-	mbps_read = CAST((c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024.0 / DATEDIFF(second, s.start_time, GETDATE()) AS numeric(10,2)),
-	mbps_written = CAST((c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024.0 / DATEDIFF(second, s.start_time, GETDATE()) AS numeric(10,2)),
-	mb_read = (c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024,
-	mb_written = (c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024,
+	throughput_mbps = CAST((c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024.0 / DATEDIFF(second, s.start_time, GETDATE()) AS numeric(10,2))
+		 + CAST((c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024.0 / DATEDIFF(second, s.start_time, GETDATE()) AS numeric(10,2)),
+	read_mbps = CAST((c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024.0 / DATEDIFF(second, s.start_time, GETDATE()) AS numeric(10,2)),
+	writte_mbps = CAST((c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024.0 / DATEDIFF(second, s.start_time, GETDATE()) AS numeric(10,2)),
 	iops = (c.num_of_reads - s.num_of_reads + c.num_of_writes - s.num_of_writes)/ DATEDIFF(second, s.start_time, GETDATE()),
-	iops_read = (c.num_of_reads - s.num_of_reads)/ DATEDIFF(second, s.start_time, GETDATE()),
-	iops_write = (c.num_of_writes - s.num_of_writes)/ DATEDIFF(second, s.start_time, GETDATE()),
-	num_of_reads = c.num_of_reads - s.num_of_reads,
-	num_of_writes = c.num_of_writes - s.num_of_writes,
-	read_latency_ms =
+	read_iops = (c.num_of_reads - s.num_of_reads)/ DATEDIFF(second, s.start_time, GETDATE()),
+	write_iops = (c.num_of_writes - s.num_of_writes)/ DATEDIFF(second, s.start_time, GETDATE()),
+	latency_ms =
+        CASE WHEN ( (c.num_of_reads - s.num_of_reads) = 0 AND (c.num_of_writes - s.num_of_writes) = 0)
+            THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall - s.io_stall) / ((c.num_of_reads - s.num_of_reads) + (c.num_of_writes - s.num_of_writes)), 1) AS numeric(5,1))) END,
+    read_latency_ms =
         CASE WHEN (c.num_of_reads - s.num_of_reads) = 0
             THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall_read_ms - s.io_stall_read_ms) / (c.num_of_reads - s.num_of_reads), 1) AS numeric(5,1))) END,
     write_latency_ms =
         CASE WHEN (c.num_of_writes - s.num_of_writes) = 0
             THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall_write_ms - s.io_stall_write_ms) / (c.num_of_writes - s.num_of_writes), 1) AS numeric(5,1))) END,
-    latency =
-        CASE WHEN ( (c.num_of_reads - s.num_of_reads) = 0 AND (c.num_of_writes - s.num_of_writes) = 0)
-            THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall - s.io_stall) / ((c.num_of_reads - s.num_of_reads) + (c.num_of_writes - s.num_of_writes)), 1) AS numeric(5,1))) END,
     kb_per_read =
         CASE WHEN (c.num_of_reads - s.num_of_reads) = 0
             THEN 0 ELSE ((c.num_of_bytes_read - s.num_of_bytes_read) / (c.num_of_reads - s.num_of_reads))/1024.0 END,
@@ -539,32 +596,37 @@ AS SELECT
                 ((c.num_of_reads - s.num_of_reads) + (c.num_of_writes - s.num_of_writes)))/1024.0 END,
 	io_stall_read_ms = c.io_stall_read_ms - s.io_stall_read_ms,
 	io_stall_write_ms = c.io_stall_write_ms - s.io_stall_write_ms,
+	read_mb = (c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024,
+	write_mb = (c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024,
+	num_of_reads = c.num_of_reads - s.num_of_reads,
+	num_of_writes = c.num_of_writes - s.num_of_writes,
 	interval_mi = DATEDIFF(minute, s.start_time, GETDATE()),
 	c.database_id
-FROM sys.dm_io_virtual_file_stats (NULL,NULL) AS c
-		JOIN sys.master_files AS [mf]
-    	ON [c].[database_id] = [mf].[database_id] AND [c].[file_id] = [mf].[file_id]
-		    JOIN qpi.dm_io_virtual_file_stats_snapshot s 
+FROM sys.master_files AS [mf]
+		OUTER APPLY sys.dm_io_virtual_file_stats ([mf].[database_id], [mf].[file_id]) AS c
+		--LEFT JOIN sys.dm_io_virtual_file_stats (NULL, NULL) AS c ON [c].[database_id] = mf.database_id AND [c].[file_id] = mf.file_id
+		    LEFT JOIN qpi.dm_io_virtual_file_stats_snapshot s 
 				ON c.database_id = s.database_id AND c.file_id = s.file_id
 GO
 
 
 
-CREATE FUNCTION qpi.runtime_file_stats_on (@when datetime2(0))
+CREATE OR ALTER FUNCTION qpi.file_stats_as_of(@when datetime2(0))
 RETURNS TABLE
 AS RETURN (SELECT
-	c.database_name,
-	c.file_name,
+	db_name = DB_NAME(mf.database_id),
+	file_name = mf.name,
 	size_gb = CAST(ROUND(mf.size /1024.0 /1024 * 8, 1) AS NUMERIC(10,1)),
-	mbps_read = CAST((c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024.0 / DATEDIFF(second, s.start_time, c.start_time) AS numeric(10,2)),
-	mbps_written = CAST((c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024.0 / DATEDIFF(second, s.start_time, c.start_time) AS numeric(10,2)),
-	mb_read = (c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024,
-	mb_written = (c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024,
+	throughput_mbps = CAST((c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024.0 / DATEDIFF(second, s.start_time, c.start_time) AS numeric(10,2))
+					+ CAST((c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024.0 / DATEDIFF(second, s.start_time, c.start_time) AS numeric(10,2)),
+	read_mbps = CAST((c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024.0 / DATEDIFF(second, s.start_time, c.start_time) AS numeric(10,2)),
+	write_mbps = CAST((c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024.0 / DATEDIFF(second, s.start_time, c.start_time) AS numeric(10,2)),
 	iops = (c.num_of_reads - s.num_of_reads + c.num_of_writes - s.num_of_writes)/ DATEDIFF(second, s.start_time, c.start_time),
-	iops_read = (c.num_of_reads - s.num_of_reads)/ DATEDIFF(second, s.start_time, c.start_time),
-	iops_write = (c.num_of_writes - s.num_of_writes)/ DATEDIFF(second, s.start_time, c.start_time),
-	num_of_reads = c.num_of_reads - s.num_of_reads,
-	num_of_writes = c.num_of_writes - s.num_of_writes,
+	read_iops = (c.num_of_reads - s.num_of_reads)/ DATEDIFF(second, s.start_time, c.start_time),
+	write_iops = (c.num_of_writes - s.num_of_writes)/ DATEDIFF(second, s.start_time, c.start_time),
+		latency_ms =
+        CASE WHEN ( (c.num_of_reads - s.num_of_reads) = 0 AND (c.num_of_writes - s.num_of_writes) = 0)
+            THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall - s.io_stall) / ((c.num_of_reads - s.num_of_reads) + (c.num_of_writes - s.num_of_writes)), 1) AS numeric(5,1))) END,
 	latency_read_ms =
         CASE WHEN (c.num_of_reads - s.num_of_reads) = 0
             THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall_read_ms - s.io_stall_read_ms) / (c.num_of_reads - s.num_of_reads), 1) AS numeric(5,1))) END,
@@ -574,9 +636,12 @@ AS RETURN (SELECT
 							1.0 * (c.io_stall_write_ms - s.io_stall_write_ms) /
 									 (c.num_of_writes - s.num_of_writes)
 									 , 1) AS numeric(5,1)))) END,
-    latency_ms =
-        CASE WHEN ( (c.num_of_reads - s.num_of_reads) = 0 AND (c.num_of_writes - s.num_of_writes) = 0)
-            THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall - s.io_stall) / ((c.num_of_reads - s.num_of_reads) + (c.num_of_writes - s.num_of_writes)), 1) AS numeric(5,1))) END,
+	num_of_reads = c.num_of_reads - s.num_of_reads,
+	num_of_writes = c.num_of_writes - s.num_of_writes,
+	io_mb = (c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024
+				  + (c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024,
+	read_mb = (c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024,
+	writte_mb = (c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024,
     kb_per_read =
         CASE WHEN (c.num_of_reads - s.num_of_reads) = 0
             THEN 0 ELSE ((c.num_of_bytes_read - s.num_of_bytes_read) / (c.num_of_reads - s.num_of_reads))/1024.0 END,
@@ -592,30 +657,28 @@ AS RETURN (SELECT
 	io_stall_write_ms = c.io_stall_write_ms - s.io_stall_write_ms,
 	interval_mi = DATEDIFF(minute, s.start_time, c.start_time),
 	c.database_id
-FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME AS OF @when AS c
-		JOIN sys.master_files AS [mf]
+FROM sys.master_files AS [mf]
+		LEFT JOIN qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME AS OF @when AS c
     	ON [c].[database_id] = [mf].[database_id] AND [c].[file_id] = [mf].[file_id]
-		    JOIN qpi.dm_io_virtual_file_stats_snapshot_history s 
+		    LEFT JOIN qpi.dm_io_virtual_file_stats_snapshot_history s 
 			ON c.database_id = s.database_id 
 				AND c.file_id = s.file_id 
 				AND c.start_time = s.end_time
 );
 GO
-CREATE OR ALTER FUNCTION qpi.runtime_file_stats_at(@milestone nvarchar(100))
+CREATE OR ALTER FUNCTION qpi.file_stats_at(@milestone nvarchar(100))
 RETURNS TABLE
 AS RETURN (SELECT
-	c.database_name,
-	c.file_name,
-	mbps_read = CAST((c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024.0 / DATEDIFF(second, s.start_time, c.start_time) AS numeric(10,2)),
-	mbps_written = CAST((c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024.0 / DATEDIFF(second, s.start_time, c.start_time) AS numeric(10,2)),
-	mb_read = (c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024,
-	mb_written = (c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024,
-	iops = (c.num_of_reads - s.num_of_reads + c.num_of_writes - s.num_of_writes)/ DATEDIFF(second, s.start_time, c.start_time),
-	iops_read = (c.num_of_reads - s.num_of_reads)/ DATEDIFF(second, s.start_time, c.start_time),
-	iops_write = (c.num_of_writes - s.num_of_writes)/ DATEDIFF(second, s.start_time, c.start_time),
-	num_of_reads = c.num_of_reads - s.num_of_reads,
-	num_of_writes = c.num_of_writes - s.num_of_writes,
-	latency_read_ms =
+	db_name = DB_NAME(mf.database_id),
+	file_name = mf.name,
+	io_mbps = CAST((c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024.0 / DATEDIFF(second, s.start_time, c.start_time) AS numeric(10,2))
+			+ CAST((c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024.0 / DATEDIFF(second, s.start_time, c.start_time) AS numeric(10,2)),
+	read_mbps = CAST((c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024.0 / DATEDIFF(second, s.start_time, c.start_time) AS numeric(10,2)),
+	write_mbps = CAST((c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024.0 / DATEDIFF(second, s.start_time, c.start_time) AS numeric(10,2)),
+	latency_ms =
+        CASE WHEN ( (c.num_of_reads - s.num_of_reads) = 0 AND (c.num_of_writes - s.num_of_writes) = 0)
+            THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall - s.io_stall) / ((c.num_of_reads - s.num_of_reads) + (c.num_of_writes - s.num_of_writes)), 1) AS numeric(5,1))) END,
+    latency_read_ms =
         CASE WHEN (c.num_of_reads - s.num_of_reads) = 0
             THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall_read_ms - s.io_stall_read_ms) / (c.num_of_reads - s.num_of_reads), 1) AS numeric(5,1))) END,
     latency_write_ms =
@@ -624,10 +687,14 @@ AS RETURN (SELECT
 							1.0 * (c.io_stall_write_ms - s.io_stall_write_ms) /
 									 (c.num_of_writes - s.num_of_writes)
 									 , 1) AS numeric(5,1)))) END,
-    latency_ms =
-        CASE WHEN ( (c.num_of_reads - s.num_of_reads) = 0 AND (c.num_of_writes - s.num_of_writes) = 0)
-            THEN 0 ELSE (CAST(ROUND(1.0 * (c.io_stall - s.io_stall) / ((c.num_of_reads - s.num_of_reads) + (c.num_of_writes - s.num_of_writes)), 1) AS numeric(5,1))) END,
-    kb_per_read =
+	iops = (c.num_of_reads - s.num_of_reads + c.num_of_writes - s.num_of_writes)/ DATEDIFF(second, s.start_time, c.start_time),
+	iops_read = (c.num_of_reads - s.num_of_reads)/ DATEDIFF(second, s.start_time, c.start_time),
+	iops_write = (c.num_of_writes - s.num_of_writes)/ DATEDIFF(second, s.start_time, c.start_time),
+	mb_read = (c.num_of_bytes_read - s.num_of_bytes_read)/1024.0/1024,
+	mb_written = (c.num_of_bytes_written - s.num_of_bytes_written)/1024.0/1024,
+	num_of_reads = c.num_of_reads - s.num_of_reads,
+	num_of_writes = c.num_of_writes - s.num_of_writes,
+	kb_per_read =
         CASE WHEN (c.num_of_reads - s.num_of_reads) = 0
             THEN 0 ELSE ((c.num_of_bytes_read - s.num_of_bytes_read) / (c.num_of_reads - s.num_of_reads))/1024.0 END,
     kb_per_write =
@@ -643,16 +710,23 @@ AS RETURN (SELECT
 	interval_mi = DATEDIFF(minute, s.start_time, c.start_time),
 	size_gb = CAST(ROUND(mf.size /1024.0 /1024 * 8, 1) AS NUMERIC(10,1)),
 	c.database_id
-FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL AS c
-		JOIN sys.master_files AS [mf]
+FROM sys.master_files AS [mf]
+		LEFT JOIN qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL AS c
     	ON [c].[database_id] = [mf].[database_id] AND [c].[file_id] = [mf].[file_id]
-		    JOIN qpi.dm_io_virtual_file_stats_snapshot_history s 
+		    JOIN qpi.dm_io_virtual_file_stats_snapshot_history s -- Do not remove this join - needed for calculating diff with previous. #Alzheimer
 			ON c.database_id = s.database_id 
 				AND c.file_id = s.file_id 
 				AND c.start_time = s.end_time
 WHERE c.title = @milestone
 );
 GO
+
+CREATE VIEW qpi.file_stats_snapshots
+AS
+SELECT DISTINCT snapshot_name = title, start_time, end_time
+FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
+GO
+
 CREATE VIEW qpi.sys_info
 AS
 SELECT cpu_count, hyperthread_ratio,
@@ -663,17 +737,13 @@ virtual_memory_gb = virtual_memory_kb / 1024 /1024,
 sqlserver_start_time
 FROM sys.dm_os_sys_info
 GO
-CREATE VIEW qpi.runtime_sys_info
+CREATE VIEW qpi.dm_cpu_usage
 AS
 SELECT
 	cpu_count,
-	[cpu%_sql] = cpu_sql,
-	[cpu%_idle] = cpu_idle,
-    [cpu%_other] = 100 - cpu_sql - cpu_idle,
-	total_memory_gb = physical_memory_kb / 1024 /1024,
-	plan_cache_gb = (SELECT SUM(size_in_bytes /1024 /1024 /1024) FROM sys.dm_exec_cached_plans),
-	buffer_pool_gb = (SELECT COUNT_BIG(*) / 128 /1024 FROM sys.dm_os_buffer_descriptors),
-	storage_gb = (SELECT sum(CAST(size as bigint) * 8 /1024 /1024) from master.sys.master_files)
+	[sql_perc] = cpu_sql,
+	[idle_perc] = cpu_idle,
+    [other_perc] = 100 - cpu_sql - cpu_idle
    FROM sys.dm_os_sys_info, (
       SELECT  
          cpu_idle = record.value('(./Record/SchedulerMonitorEvent/SystemHealth/SystemIdle)[1]', 'int'),
@@ -688,17 +758,27 @@ SELECT
 		 ) as y
 GO      
    
-CREATE VIEW qpi.runtime_plan_cache_info
+CREATE VIEW qpi.dm_mem_plan_cache_info
 AS
-SELECT  objtype,
+SELECT  cached_object = objtype,
         memory_gb = SUM(size_in_bytes /1024 /1024 /1024),
 		plan_count = COUNT_BIG(*)
     FROM sys.dm_exec_cached_plans
     GROUP BY objtype
 GO
 
+CREATE VIEW qpi.dm_mem_usage
+AS
+SELECT
+	total_memory_gb = physical_memory_kb / 1024 /1024,
+	plan_cache_gb = (SELECT SUM(size_in_bytes /1024 /1024 /1024) FROM sys.dm_exec_cached_plans),
+	buffer_pool_gb = (SELECT COUNT_BIG(*) / 128 /1024 FROM sys.dm_os_buffer_descriptors),
+	file_storage_gb = (SELECT sum(CAST(size as bigint) * 8 /1024 /1024) from master.sys.master_files)
+   FROM sys.dm_os_sys_info
+GO
+
 -- https://www.mssqltips.com/sqlservertip/2393/determine-sql-server-memory-use-by-database-and-object/
-CREATE VIEW qpi.db_mem_usage
+CREATE VIEW qpi.dm_db_mem_usage
 AS
 WITH src AS
 (
@@ -709,7 +789,7 @@ FROM sys.dm_os_buffer_descriptors
 GROUP BY database_id
 )
 SELECT
-[database_name] = CASE [database_id] WHEN 32767 
+[db_name] = CASE [database_id] WHEN 32767 
 THEN 'Resource DB' 
 ELSE DB_NAME([database_id]) END,
 buffer_gb = db_buffer_pages / 128 /1024,

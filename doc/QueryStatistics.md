@@ -2,43 +2,31 @@
 Query Performance Insight library enables you to analyze query and plan performance information.
 
 ## Query runtime performance
-QPI library enables you to easily get information about the query plan performance using `qpi.runtime_stats` view.
+QPI library enables you to easily get information about the query plan performance using `qpi.query_stats` view.
 ```
 SELECT *,
 		log_throughput_kbps = log_bytes_used_kb /interval_mi /60
-FROM qpi.runtime_stats
+FROM qpi.query_stats
 ```
-`qpi.runtime_stats` view returns the following information:
 
-| Column | Description |
-| --- | --- |
-| query_id | Id of the query. |
-| query_text | Text of the query. |
-| start_time| Time when query started. |
-| end_time| Time when query finished. |
-| execution\_type\_desc | Execution type (`Regular`, `Aborted`, `Exception`).|
-| wait\_category\_desc | The reason why the query is waiting. |
-| wait\_time\_s | Total wait time in seconds. |
-| interval_mi| Length of observed Query Store interval. | 
-
-In order to get the query performance information on some specific time interval, you can use `qpi.runtime_stats_on` function:
+In order to get the query performance information on some specific time interval, you can use `qpi.query_stats_as_of` function:
 ```
 SELECT * 
-FROM qpi.runtime_stats_on( '2018-02-25T16:30:00.0000' );
+FROM qpi.query_stats_as_of( '2018-02-25T16:30:00.0000' );
 ```
 
 This query will return the same information as the previous one, but in the time window for the date provided as the argument. Time window is the Query Store interval length for this period.
 
-> `qpi.ago()` is a helper function that returns a datetime in past. `qpi.ago(1|3,15)` will return the date 1 day, 3 hours, and 15 minutes ago. Instead of calculating time or using `DATEDIFF` function, you can use this function to go back in time. The following example goes two and half hours back in time:
+> `qpi.ago()` is a helper function that returns a datetime in past. `qpi.ago(1,3,15)` will return the date 1 day, 3 hours, and 15 minutes ago. Instead of calculating time or using `DATEDIFF` function, you can use this function to go back in time. The following example goes two and half hours back in time:
 ```
 SELECT * 
-FROM qpi.runtime_stats_on(qpi.ago(0,2,30));
+FROM qpi.query_stats_as_of(qpi.ago(0,2,30));
 ```
 
-If you are interested in some particular query plan, you can filter results by `plan_id`:
+If you are interested in some particular query plan, you can use view `qpi.query_plan_stats_as_of` and filter results by `plan_id`:
 ```
 SELECT * 
-FROM qpi.runtime_stats_on(qpi.ago(1,0,0))
+FROM qpi.query_plan_stats_as_of(qpi.ago(1,0,0))
 WHERE plan_id = 1815;
 ```
 

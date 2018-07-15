@@ -32,7 +32,7 @@ EXEC qpi.snapshot_file_stats @title = 'M3';
 When you take the snapshots of the file statistics, you can find information about the file performance at some point of time:
 ```
 SELECT *
-FROM qpi.file_stats_on( qpi.ago(0, 2, 15) );
+FROM qpi.file_stats_as_of( qpi.ago(0, 2, 15) );
 ```
 
 Since the snapshots are labeled, you can get file performance at some snapshot point:

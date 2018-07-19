@@ -735,12 +735,11 @@ GO
 
 CREATE VIEW qpi.sys_info
 AS
-SELECT cpu_count, hyperthread_ratio,
-physical_cpu_count = cpu_count/hyperthread_ratio,
-socket_count,
-memory_gb = physical_memory_kb / 1024 /1024,
-virtual_memory_gb = virtual_memory_kb / 1024 /1024,
-sqlserver_start_time
+SELECT cpu_count,
+	memory_gb = (select process_memory_limit_mb - non_sos_mem_gap_mb FROM sys.dm_os_job_object),
+	sqlserver_start_time,
+	hyperthread_ratio,
+	physical_cpu_count = cpu_count/hyperthread_ratio
 FROM sys.dm_os_sys_info
 GO
 CREATE VIEW qpi.dm_cpu_usage
@@ -775,13 +774,17 @@ GO
 
 CREATE VIEW qpi.dm_mem_usage
 AS
-SELECT
-	total_memory_gb = physical_memory_kb / 1024 /1024,
-	plan_cache_gb = (SELECT SUM(size_in_bytes /1024 /1024 /1024) FROM sys.dm_exec_cached_plans),
-	buffer_pool_gb = (SELECT COUNT_BIG(*) / 128 /1024 FROM sys.dm_os_buffer_descriptors),
-	file_storage_gb = (SELECT sum(CAST(size as bigint) * 8 /1024 /1024) from master.sys.master_files)
-   FROM sys.dm_os_sys_info
-GO
+SELECT memory = REPLACE(type, 'MEMORYCLERK_', '') 
+     , mem_gb = sum(pages_kb)/1024/1024
+	 , mem_perc = ROUND(sum(pages_kb)/1024.0/ (select process_memory_limit_mb - non_sos_mem_gap_mb FROM sys.dm_os_job_object),2)
+   FROM sys.dm_os_memory_clerks
+   GROUP BY type
+   HAVING sum(pages_kb) /1024 /1024 > 0
+UNION ALL
+	SELECT memory = '_Total',
+		mem_gb = (process_memory_limit_mb - non_sos_mem_gap_mb),
+		mem_perc = 1
+	FROM sys.dm_os_job_object;
 
 -- https://www.mssqltips.com/sqlservertip/2393/determine-sql-server-memory-use-by-database-and-object/
 CREATE VIEW qpi.dm_db_mem_usage

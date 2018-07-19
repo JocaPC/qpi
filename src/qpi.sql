@@ -324,6 +324,11 @@ CREATE OR ALTER VIEW qpi.query_plan_stats
 AS SELECT * FROM qpi.query_plan_stats_as_of(GETDATE());
 GO
 
+CREATE OR ALTER VIEW qpi.query_plan_stats_all
+AS SELECT * FROM qpi.query_plan_stats_as_of(NULL);
+GO
+
+
 -- Returns all query plan statistics without currently running values.
 CREATE   function qpi.query_plan_stats_ex_as_of(@date datetime2)
 returns table

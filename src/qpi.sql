@@ -10,6 +10,8 @@ DROP PROCEDURE IF EXISTS qpi.snapshot_file_stats;
 GO
 DROP VIEW IF EXISTS qpi.file_stats;
 GO
+DROP VIEW IF EXISTS qpi.dm_volumes;
+GO
 DROP VIEW IF EXISTS qpi.file_stats_snapshots
 GO
 DROP FUNCTION IF EXISTS qpi.file_stats_as_of;
@@ -43,6 +45,8 @@ GO
 DROP VIEW IF EXISTS qpi.query_plan_stats;
 GO
 DROP VIEW IF EXISTS qpi.query_plan_stats_ex;
+GO
+DROP VIEW IF EXISTS qpi.query_plan_stats_all;
 GO
 DROP VIEW IF EXISTS qpi.dm_query_stats;
 GO
@@ -738,6 +742,17 @@ SELECT DISTINCT snapshot_name = title, start_time, end_time
 FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
 GO
 
+CREATE OR ALTER VIEW qpi.dm_volumes
+AS
+SELECT	volume_mount_point,
+		used_gb = MIN(total_bytes / 1024 / 1024 / 1024),
+		available_gb = MIN(available_bytes / 1024 / 1024 / 1024),
+		total_gb = MIN((total_bytes+available_bytes) / 1024 / 1024 / 1024)
+FROM sys.master_files AS f  
+CROSS APPLY sys.dm_os_volume_stats(f.database_id, f.file_id)
+GROUP BY volume_mount_point;
+GO
+
 CREATE VIEW qpi.sys_info
 AS
 SELECT cpu_count,
@@ -790,7 +805,7 @@ UNION ALL
 		mem_gb = (process_memory_limit_mb - non_sos_mem_gap_mb),
 		mem_perc = 1
 	FROM sys.dm_os_job_object;
-
+GO
 -- https://www.mssqltips.com/sqlservertip/2393/determine-sql-server-memory-use-by-database-and-object/
 CREATE VIEW qpi.dm_db_mem_usage
 AS

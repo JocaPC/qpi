@@ -6,9 +6,8 @@ The following query returns number of requests per second and CPU% used by queri
 ```
 select start_time, execution_type_desc,
 	tps =  sum(count_executions)/ min(interval_mi) /60,
-	tph =  sum(count_executions) * 60 / min(interval_mi),
 	[cpu %] = ROUND(100 * sum(count_executions*cpu_time_s)/ min(interval_mi) /60 /(SELECT top 1 cpu_count FROM sys.dm_os_sys_info)/*cores*/,1)
-from qpi.query_stats_all
+from qpi.query_plan_stats
 group by start_time, execution_type_desc
 order by start_time desc
 ```

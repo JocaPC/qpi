@@ -36,6 +36,8 @@ DROP VIEW IF EXISTS qpi.queries_ex;
 GO
 DROP VIEW IF EXISTS qpi.dm_queries;
 GO
+DROP VIEW IF EXISTS qpi.dm_blocked_queries;
+GO
 DROP VIEW IF EXISTS qpi.query_texts;
 GO
 DROP VIEW IF EXISTS qpi.query_stats;
@@ -85,7 +87,7 @@ DROP FUNCTION IF EXISTS qpi.decode_options;
 GO
 DROP FUNCTION IF EXISTS qpi.ago;
 GO
-DROP FUNCTION IF EXISTS qpi.ddhhmm;
+DROP FUNCTION IF EXISTS qpi.dhm;
 GO
 DROP FUNCTION IF EXISTS qpi.us2min;
 GO
@@ -113,9 +115,9 @@ AS BEGIN RETURN DATEADD(day, - @days,
 					) END;
 GO
 ---
----	SELECT qpi.ddhhmm(21015) => GETDATE() - ( 2 days 10 hours 15 min)
+---	SELECT qpi.dhm(21015) => GETDATE() - ( 2 days 10 hours 15 min)
 ---
-CREATE FUNCTION qpi.ddhhmm(@time int)
+CREATE FUNCTION qpi.dhm(@time int)
 RETURNS datetime2
 AS BEGIN RETURN DATEADD(DAY, - ((@time /10000) %100), 
 					DATEADD(HOUR, - (@time /100) %100,
@@ -266,6 +268,39 @@ SELECT
 		end_time = null
 FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle) t
+GO
+
+CREATE OR ALTER VIEW qpi.dm_blocked_queries
+AS
+SELECT   
+	text = blocked.text,
+	session_id = blocked.session_id,
+	blocked_by_session_id = conn.session_id,
+	blocked_by_query = last_query.text,
+	wait_time_s = w.wait_duration_ms /1000,
+	w.wait_type,
+	locked_object_id = obj.object_id,
+	locked_object_schema = SCHEMA_NAME(obj.schema_id),
+	locked_object_name = obj.name,
+	locked_object_type = obj.type_desc,
+	locked_resource_type = tl.resource_type,
+	locked_resource_db = DB_NAME(tl.resource_database_id),
+	tl.request_mode,
+	tl.request_type,
+	tl.request_status,
+	tl.request_owner_type,
+	w.resource_description
+FROM qpi.dm_queries blocked
+	INNER JOIN sys.dm_os_waiting_tasks w
+	ON blocked.session_id = w.session_id 
+		INNER JOIN sys.dm_exec_connections conn
+		ON conn.session_id =  w.blocking_session_id
+			CROSS APPLY sys.dm_exec_sql_text(conn.most_recent_sql_handle) AS last_query 
+	LEFT JOIN sys.dm_tran_locks as tl
+	 ON tl.lock_owner_address = w.resource_address 
+	 LEFT JOIN SYS.PARTITIONS p ON p.hobt_id = tl.resource_associated_entity_id
+		LEFT JOIN SYS.OBJECTS obj ON p.object_id = obj.object_id
+WHERE w.session_id <> w.blocking_session_id
 GO
 
 create   function qpi.query_plan_wait_stats_as_of(@date datetime2)

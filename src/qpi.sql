@@ -52,6 +52,8 @@ DROP VIEW IF EXISTS qpi.query_plan_stats_all;
 GO
 DROP VIEW IF EXISTS qpi.dm_query_stats;
 GO
+DROP VIEW IF EXISTS qpi.dm_query_locks;
+GO
 DROP VIEW IF EXISTS qpi.query_plan_wait_stats;
 GO
 DROP FUNCTION IF EXISTS qpi.query_stats_as_of;
@@ -235,6 +237,30 @@ SELECT
 FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
 WHERE text NOT LIKE '%qpi.dm_queries%'
+GO
+
+CREATE OR ALTER VIEW qpi.dm_query_locks
+AS
+SELECT   
+	text = q.text,
+	session_id = q.session_id,
+	tl.request_mode,
+	tl.request_type,
+	tl.request_status,
+	locked_object_id = obj.object_id,
+	locked_object_schema = SCHEMA_NAME(obj.schema_id),
+	locked_object_name = obj.name,
+	locked_object_type = obj.type_desc,
+	locked_resource_type = tl.resource_type,
+	locked_resource_db = DB_NAME(tl.resource_database_id),
+	tl.request_owner_type,
+	q.request_id,
+	tl.resource_associated_entity_id
+FROM qpi.dm_queries q
+	JOIN sys.dm_tran_locks as tl
+		ON q.session_id = tl.request_session_id and q.request_id = tl.request_request_id 
+		LEFT JOIN sys.partitions p ON p.hobt_id = tl.resource_associated_entity_id
+			LEFT JOIN sys.objects obj ON p.object_id = obj.object_id
 GO
 
 ------------------------------------------------------------------------------------

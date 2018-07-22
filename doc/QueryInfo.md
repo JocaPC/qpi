@@ -47,10 +47,23 @@ FROM qpi.query_texts;
 
 > One T-SQL query text might have several actual queries in **Query Store** terminology because the same query text might be executed under different conditions. This is the reason why we have a list of all possible query ids for one query text.
 
-## Runtime query stats
+## Runtime query information
 
 **QPI** library enables you to get the list of currently running queries using `qpi.dm_queries` view:
 ```
 SELECT *
 FROM qpi.dm_queries;
+```
+
+You can also find lock aquired by the currently executing queries using `qpi.dm_query_locks` view:
+```
+SELECT *
+FROM qpi.dm_query_locks;
+```
+
+`qpi.dm_blocked_queries` view enables you to find all currently blocked queries, sessions that blocked them and (probably) the query that is blocking the current query.
+
+```
+SELECT *
+FROM qpi.dm_blocked_queries;
 ```

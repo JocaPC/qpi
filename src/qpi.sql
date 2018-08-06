@@ -1,106 +1,12 @@
 --------------------------------------------------------------------------------
---	SQLServer - Query Performance Insights
+--	SQL Server & Azure SQL Managed Instance - Query Performance Insights
 --	Author: Jovan Popovic
 --------------------------------------------------------------------------------
---TODO: https://blogs.sentryone.com/allenwhite/sql-server-performance-counters-to-monitor/
---------------------------------------------------------------------------------
---	File Statistics
---------------------------------------------------------------------------------
-DROP PROCEDURE IF EXISTS qpi.snapshot_file_stats;
-GO
-DROP VIEW IF EXISTS qpi.file_stats;
-GO
-DROP VIEW IF EXISTS qpi.dm_volumes;
-GO
-DROP VIEW IF EXISTS qpi.file_stats_snapshots
-GO
-DROP FUNCTION IF EXISTS qpi.file_stats_as_of;
-GO
-DROP FUNCTION IF EXISTS qpi.file_stats_at;
-GO
-BEGIN TRY
-	EXEC('ALTER TABLE qpi.dm_io_virtual_file_stats_snapshot 
-			SET (SYSTEM_VERSIONING = OFF)');
-END TRY BEGIN CATCH END CATCH;
-GO
-DROP TABLE IF EXISTS qpi.dm_io_virtual_file_stats_snapshot_history;
-GO
-DROP TABLE IF EXISTS qpi.dm_io_virtual_file_stats_snapshot;
-GO
---------------------------------------------------------------------------------
---	Query info
---------------------------------------------------------------------------------
-DROP VIEW IF EXISTS qpi.queries;
-GO
-DROP VIEW IF EXISTS qpi.queries_ex;
-GO
-DROP VIEW IF EXISTS qpi.dm_queries;
-GO
-DROP VIEW IF EXISTS qpi.dm_blocked_queries;
-GO
-DROP VIEW IF EXISTS qpi.query_texts;
-GO
-DROP VIEW IF EXISTS qpi.query_stats;
-GO
-DROP VIEW IF EXISTS qpi.query_stats_all;
-GO
-DROP VIEW IF EXISTS qpi.query_plan_stats;
-GO
-DROP VIEW IF EXISTS qpi.query_plan_stats_ex;
-GO
-DROP VIEW IF EXISTS qpi.query_plan_stats_all;
-GO
-DROP VIEW IF EXISTS qpi.dm_query_stats;
-GO
-DROP VIEW IF EXISTS qpi.dm_query_locks;
-GO
-DROP VIEW IF EXISTS qpi.query_plan_wait_stats;
-GO
-DROP FUNCTION IF EXISTS qpi.query_stats_as_of;
-GO
-DROP FUNCTION IF EXISTS qpi.query_plan_stats_as_of;
-GO
-DROP FUNCTION IF EXISTS qpi.query_plan_stats_ex_as_of;
-GO
-DROP FUNCTION IF EXISTS qpi.query_plan_wait_stats_as_of;
-GO
-DROP FUNCTION IF EXISTS qpi.compare_query_stats_on_intervals;
-GO
-DROP FUNCTION IF EXISTS qpi.query_plan_stats_diff_on_intervals;
-GO
-DROP FUNCTION IF EXISTS qpi.compare_query_plans;
-GO
-DROP FUNCTION IF EXISTS qpi.query_wait_stats_as_of;
-GO
---------------------------------------------------------------------------------
---	Resource info
---------------------------------------------------------------------------------
-DROP VIEW IF EXISTS qpi.sys_info;
-GO
-DROP VIEW IF EXISTS qpi.dm_cpu_usage;
-GO
-DROP VIEW IF EXISTS qpi.dm_mem_usage;
-GO
-DROP VIEW IF EXISTS qpi.dm_db_mem_usage;
-GO
-DROP VIEW IF EXISTS qpi.dm_mem_plan_cache_info;
-GO
-DROP FUNCTION IF EXISTS qpi.decode_options;
-GO
-DROP FUNCTION IF EXISTS qpi.ago;
-GO
-DROP FUNCTION IF EXISTS qpi.dhm;
-GO
-DROP FUNCTION IF EXISTS qpi.us2min;
-GO
-DROP FUNCTION IF EXISTS qpi.compare_context_settings;
-GO
-DROP SCHEMA IF EXISTS qpi;
-GO
 
 CREATE SCHEMA qpi;
 GO
-CREATE FUNCTION qpi.us2min(@microseconds bigint)
+
+CREATE OR ALTER FUNCTION qpi.us2min(@microseconds bigint)
 RETURNS INT
 AS BEGIN RETURN ( @microseconds /1000 /1000 /60 ) END;
 GO
@@ -108,7 +14,7 @@ GO
 ---
 ---	SELECT qpi.ago(2,10,15) => GETDATE() - ( 2 days 10 hours 15 min)
 ---
-CREATE FUNCTION qpi.ago(@days tinyint, @hours tinyint, @min tinyint)
+CREATE OR ALTER FUNCTION qpi.ago(@days tinyint, @hours tinyint, @min tinyint)
 RETURNS datetime2
 AS BEGIN RETURN DATEADD(day, - @days, 
 					DATEADD(hour, - @hours,
@@ -119,7 +25,7 @@ GO
 ---
 ---	SELECT qpi.dhm(21015) => GETDATE() - ( 2 days 10 hours 15 min)
 ---
-CREATE FUNCTION qpi.dhm(@time int)
+CREATE OR ALTER FUNCTION qpi.dhm(@time int)
 RETURNS datetime2
 AS BEGIN RETURN DATEADD(DAY, - ((@time /10000) %100), 
 					DATEADD(HOUR, - (@time /100) %100,
@@ -127,7 +33,7 @@ AS BEGIN RETURN DATEADD(DAY, - ((@time /10000) %100),
 						)						
 					) END;
 GO
-CREATE   FUNCTION qpi.decode_options(@options int)
+CREATE OR ALTER FUNCTION qpi.decode_options(@options int)
 RETURNS TABLE
 RETURN (
 SELECT 'DISABLE_DEF_CNST_CHK' = IIF( (1 & @options) = 1, 'ON', 'OFF' )
@@ -148,7 +54,7 @@ SELECT 'DISABLE_DEF_CNST_CHK' = IIF( (1 & @options) = 1, 'ON', 'OFF' )
 )
 GO
 
-CREATE     function qpi.compare_context_settings (@ctx_id1 int, @ctx_id2 int)
+CREATE OR ALTER FUNCTION qpi.compare_context_settings (@ctx_id1 int, @ctx_id2 int)
 returns table
 return (
 	select a.[key], a.value value1, b.value value2
@@ -175,7 +81,7 @@ return (
 );
 
 GO
-create view qpi.queries
+CREATE OR ALTER VIEW qpi.queries
 as
 select	text =  IIF(LEFT(query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text),
 		params = IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), ''),
@@ -184,7 +90,7 @@ from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
 GO
 
-create view qpi.queries_ex
+CREATE OR ALTER VIEW qpi.queries_ex
 as
 select	text =  IIF(LEFT(query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text),
 		params = IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), ''),
@@ -198,7 +104,7 @@ FROM sys.query_store_query_text t
 			CROSS APPLY qpi.decode_options(ctx.set_options) o
 GO
 
-create view qpi.query_texts
+CREATE OR ALTER VIEW qpi.query_texts
 as
 select	text =  IIF(LEFT(query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text),
 		params = IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), ''),
@@ -244,16 +150,16 @@ AS
 SELECT   
 	text = q.text,
 	session_id = q.session_id,
+	tl.request_owner_type,
+	tl.request_status,
 	tl.request_mode,
 	tl.request_type,
-	tl.request_status,
 	locked_object_id = obj.object_id,
 	locked_object_schema = SCHEMA_NAME(obj.schema_id),
 	locked_object_name = obj.name,
 	locked_object_type = obj.type_desc,
 	locked_resource_type = tl.resource_type,
 	locked_resource_db = DB_NAME(tl.resource_database_id),
-	tl.request_owner_type,
 	q.request_id,
 	tl.resource_associated_entity_id
 FROM qpi.dm_queries q
@@ -329,6 +235,258 @@ FROM qpi.dm_queries blocked
 WHERE w.session_id <> w.blocking_session_id
 GO
 
+/*******************************************************************************
+*	Wait statistics
+*******************************************************************************/
+
+CREATE TABLE qpi.dm_os_wait_stats_snapshot
+	(
+	[category_id] tinyint NULL,
+	[wait_type] [nvarchar](60) NOT NULL,
+	[waiting_tasks_count] [bigint] NOT NULL,
+	[wait_time_ms] [bigint] NOT NULL,
+	[max_wait_time_ms] [bigint] NOT NULL,
+	[signal_wait_time_ms] [bigint] NOT NULL,
+	[title] [nvarchar](50),
+	start_time datetime2 GENERATED ALWAYS AS ROW START,
+	end_time datetime2 GENERATED ALWAYS AS ROW END,
+	PERIOD FOR SYSTEM_TIME (start_time, end_time),
+	PRIMARY KEY (wait_type)  
+ ) WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.dm_os_wait_stats_snapshot_history));
+GO
+CREATE INDEX ix_dm_os_wait_stats_snapshot
+	ON qpi.dm_os_wait_stats_snapshot_history(end_time);
+GO
+
+CREATE PROCEDURE qpi.snapshot_wait_stats @title nvarchar(200) = NULL
+AS BEGIN
+MERGE qpi.dm_os_wait_stats_snapshot AS Target
+USING (
+	SELECT
+	category_id = CASE
+		WHEN wait_type = 'Unknown'				THEN 0
+		WHEN wait_type = 'SOS_SCHEDULER_YIELD'	THEN 1
+		WHEN wait_type = 'SOS_WORK_DISPATCHER'	THEN 1
+		WHEN wait_type = 'THREADPOOL'			THEN 2
+		WHEN wait_type LIKE 'LCK_M_%'			THEN 3
+		WHEN wait_type LIKE 'LATCH_%'			THEN 4
+		WHEN wait_type LIKE 'PAGELATCH_%'		THEN 5
+		WHEN wait_type LIKE 'PAGEIOLATCH_%'		THEN 6
+		WHEN wait_type = 'RESOURCE_SEMAPHORE_QUERY_COMPILE'
+												THEN 7
+		WHEN wait_type LIKE 'CLR%'				THEN 8
+		WHEN wait_type LIKE 'SQLCLR%'			THEN 8
+		WHEN wait_type LIKE 'DBMIRROR%'			THEN 9
+		WHEN wait_type LIKE 'XACT%'				THEN 10
+		WHEN wait_type LIKE 'DTC%'				THEN 10
+		WHEN wait_type LIKE 'TRAN_MARKLATCH_%'	THEN 10
+		WHEN wait_type = 'TRANSACTION_MUTEX'	THEN 10
+		WHEN wait_type LIKE 'MSQL_XACT_%'		THEN 10
+		WHEN wait_type LIKE 'SLEEP_%'			THEN 11
+		WHEN wait_type IN ('LAZYWRITER_SLEEP', 'SQLTRACE_BUFFER_FLUSH',
+							'SQLTRACE_INCREMENTAL_FLUSH_SLEEP', 'SQLTRACE_WAIT_ENTRIES',
+							'FT_IFTS_SCHEDULER_IDLE_WAIT', 'XE_DISPATCHER_WAIT',
+							'REQUEST_FOR_DEADLOCK_SEARCH', 'LOGMGR_QUEUE',
+							'ONDEMAND_TASK_QUEUE', 'CHECKPOINT_QUEUE', 'XE_TIMER_EVENT')
+												THEN 11
+		WHEN wait_type LIKE 'PREEMPTIVE_%'		THEN 12
+		WHEN wait_type LIKE 'BROKER_%' AND wait_type <> 'BROKER_RECEIVE_WAITFOR'
+												THEN 13
+		WHEN wait_type IN ('LOGMGR', 'LOGBUFFER', 'LOGMGR_RESERVE_APPEND', 'LOGMGR_FLUSH',
+							'LOGMGR_PMM_LOG', 'CHKPT', 'WRITELOG')
+														THEN 14
+		WHEN wait_type IN ('ASYNC_NETWORK_IO', 'NET_WAITFOR_PACKET', 'PROXY_NETWORK_IO', 
+							'EXTERNAL_SCRIPT_NETWORK_IO')
+														THEN 15														
+		WHEN wait_type IN ('CXPACKET', 'EXCHANGE')
+														THEN 16
+		WHEN wait_type IN ('RESOURCE_SEMAPHORE', 'CMEMTHREAD', 'CMEMPARTITIONED', 'EE_PMOLOCK',
+							'MEMORY_ALLOCATION_EXT', 'RESERVED_MEMORY_ALLOCATION_EXT', 'MEMORY_GRANT_UPDATE')
+														THEN 17
+		WHEN wait_type IN ('WAITFOR', 'WAIT_FOR_RESULTS', 'BROKER_RECEIVE_WAITFOR')
+														THEN 18
+		WHEN wait_type IN ('TRACEWRITE', 'SQLTRACE_LOCK', 'SQLTRACE_FILE_BUFFER', 'SQLTRACE_FILE_WRITE_IO_COMPLETION', 'SQLTRACE_FILE_READ_IO_COMPLETION', 'SQLTRACE_PENDING_BUFFER_WRITERS', 'SQLTRACE_SHUTDOWN', 'QUERY_TRACEOUT', 'TRACE_EVTNOTIFF')
+														THEN 19
+		WHEN wait_type IN ('FT_RESTART_CRAWL', 'FULLTEXT GATHERER', 'MSSEARCH', 'FT_METADATA_MUTEX', 'FT_IFTSHC_MUTEX', 'FT_IFTSISM_MUTEX', 'FT_IFTS_RWLOCK', 'FT_COMPROWSET_RWLOCK', 'FT_MASTER_MERGE', 'FT_PROPERTYLIST_CACHE', 'FT_MASTER_MERGE_COORDINATOR', 'PWAIT_RESOURCE_SEMAPHORE_FT_PARALLEL_QUERY_SYNC')
+														THEN 20
+		WHEN wait_type IN ('ASYNC_IO_COMPLETION', 'IO_COMPLETION', 'BACKUPIO',
+							'WRITE_COMPLETION', 'IO_QUEUE_LIMIT', 'IO_RETRY')
+														THEN 21
+		WHEN wait_type IN ('REPLICA_WRITES', 'FCB_REPLICA_WRITE', 'FCB_REPLICA_READ', 'PWAIT_HADRSIM')
+														THEN 22
+		WHEN wait_type LIKE 'SE_REPL_%'					THEN 22
+		WHEN wait_type LIKE 'REPL_%'					THEN 22
+		WHEN wait_type LIKE 'HADR_%'
+		AND	 wait_type <> 'HADR_THROTTLE_LOG_RATE_GOVERNOR'
+														THEN 22
+		WHEN wait_type LIKE 'PWAIT_HADR_%'				THEN 22
+		WHEN wait_type IN ('LOG_RATE_GOVERNOR', 'POOL_LOG_RATE_GOVERNOR',
+							'HADR_THROTTLE_LOG_RATE_GOVERNOR', 'INSTANCE_LOG_RATE_GOVERNOR')
+														THEN 23		
+		ELSE NULL
+	END,
+	[wait_type],
+	[waiting_tasks_count],
+	[wait_time_ms],
+	[max_wait_time_ms],
+	[signal_wait_time_ms]
+	from sys.dm_os_wait_stats
+	-- see: https://www.sqlskills.com/blogs/paul/wait-statistics-or-please-tell-me-where-it-hurts/
+	-- Last updated June 13, 2018
+	where [wait_type] NOT IN (
+        -- These wait types are almost 100% never a problem and so they are
+        -- filtered out to avoid them skewing the results. Click on the URL
+        -- for more information.
+        N'BROKER_EVENTHANDLER', -- https://www.sqlskills.com/help/waits/BROKER_EVENTHANDLER
+        N'BROKER_RECEIVE_WAITFOR', -- https://www.sqlskills.com/help/waits/BROKER_RECEIVE_WAITFOR
+        N'BROKER_TASK_STOP', -- https://www.sqlskills.com/help/waits/BROKER_TASK_STOP
+        N'BROKER_TO_FLUSH', -- https://www.sqlskills.com/help/waits/BROKER_TO_FLUSH
+        N'BROKER_TRANSMITTER', -- https://www.sqlskills.com/help/waits/BROKER_TRANSMITTER
+        N'CHECKPOINT_QUEUE', -- https://www.sqlskills.com/help/waits/CHECKPOINT_QUEUE
+        N'CHKPT', -- https://www.sqlskills.com/help/waits/CHKPT
+        N'CLR_AUTO_EVENT', -- https://www.sqlskills.com/help/waits/CLR_AUTO_EVENT
+        N'CLR_MANUAL_EVENT', -- https://www.sqlskills.com/help/waits/CLR_MANUAL_EVENT
+        N'CLR_SEMAPHORE', -- https://www.sqlskills.com/help/waits/CLR_SEMAPHORE
+        N'CXCONSUMER', -- https://www.sqlskills.com/help/waits/CXCONSUMER
+ 
+        -- Maybe comment these four out if you have mirroring issues
+        N'DBMIRROR_DBM_EVENT', -- https://www.sqlskills.com/help/waits/DBMIRROR_DBM_EVENT
+        N'DBMIRROR_EVENTS_QUEUE', -- https://www.sqlskills.com/help/waits/DBMIRROR_EVENTS_QUEUE
+        N'DBMIRROR_WORKER_QUEUE', -- https://www.sqlskills.com/help/waits/DBMIRROR_WORKER_QUEUE
+        N'DBMIRRORING_CMD', -- https://www.sqlskills.com/help/waits/DBMIRRORING_CMD
+ 
+        N'DIRTY_PAGE_POLL', -- https://www.sqlskills.com/help/waits/DIRTY_PAGE_POLL
+        N'DISPATCHER_QUEUE_SEMAPHORE', -- https://www.sqlskills.com/help/waits/DISPATCHER_QUEUE_SEMAPHORE
+        N'EXECSYNC', -- https://www.sqlskills.com/help/waits/EXECSYNC
+        N'FSAGENT', -- https://www.sqlskills.com/help/waits/FSAGENT
+        N'FT_IFTS_SCHEDULER_IDLE_WAIT', -- https://www.sqlskills.com/help/waits/FT_IFTS_SCHEDULER_IDLE_WAIT
+        N'FT_IFTSHC_MUTEX', -- https://www.sqlskills.com/help/waits/FT_IFTSHC_MUTEX
+ 
+        -- Maybe comment these six out if you have AG issues
+        N'HADR_CLUSAPI_CALL', -- https://www.sqlskills.com/help/waits/HADR_CLUSAPI_CALL
+        N'HADR_FILESTREAM_IOMGR_IOCOMPLETION', -- https://www.sqlskills.com/help/waits/HADR_FILESTREAM_IOMGR_IOCOMPLETION
+        N'HADR_LOGCAPTURE_WAIT', -- https://www.sqlskills.com/help/waits/HADR_LOGCAPTURE_WAIT
+        N'HADR_NOTIFICATION_DEQUEUE', -- https://www.sqlskills.com/help/waits/HADR_NOTIFICATION_DEQUEUE
+        N'HADR_TIMER_TASK', -- https://www.sqlskills.com/help/waits/HADR_TIMER_TASK
+        N'HADR_WORK_QUEUE', -- https://www.sqlskills.com/help/waits/HADR_WORK_QUEUE
+ 
+        N'KSOURCE_WAKEUP', -- https://www.sqlskills.com/help/waits/KSOURCE_WAKEUP
+        N'LAZYWRITER_SLEEP', -- https://www.sqlskills.com/help/waits/LAZYWRITER_SLEEP
+        N'LOGMGR_QUEUE', -- https://www.sqlskills.com/help/waits/LOGMGR_QUEUE
+        N'MEMORY_ALLOCATION_EXT', -- https://www.sqlskills.com/help/waits/MEMORY_ALLOCATION_EXT
+        N'ONDEMAND_TASK_QUEUE', -- https://www.sqlskills.com/help/waits/ONDEMAND_TASK_QUEUE
+        N'PARALLEL_REDO_DRAIN_WORKER', -- https://www.sqlskills.com/help/waits/PARALLEL_REDO_DRAIN_WORKER
+        N'PARALLEL_REDO_LOG_CACHE', -- https://www.sqlskills.com/help/waits/PARALLEL_REDO_LOG_CACHE
+        N'PARALLEL_REDO_TRAN_LIST', -- https://www.sqlskills.com/help/waits/PARALLEL_REDO_TRAN_LIST
+        N'PARALLEL_REDO_WORKER_SYNC', -- https://www.sqlskills.com/help/waits/PARALLEL_REDO_WORKER_SYNC
+        N'PARALLEL_REDO_WORKER_WAIT_WORK', -- https://www.sqlskills.com/help/waits/PARALLEL_REDO_WORKER_WAIT_WORK
+        N'PREEMPTIVE_XE_GETTARGETSTATE', -- https://www.sqlskills.com/help/waits/PREEMPTIVE_XE_GETTARGETSTATE
+        N'PWAIT_ALL_COMPONENTS_INITIALIZED', -- https://www.sqlskills.com/help/waits/PWAIT_ALL_COMPONENTS_INITIALIZED
+        N'PWAIT_DIRECTLOGCONSUMER_GETNEXT', -- https://www.sqlskills.com/help/waits/PWAIT_DIRECTLOGCONSUMER_GETNEXT
+        N'QDS_PERSIST_TASK_MAIN_LOOP_SLEEP', -- https://www.sqlskills.com/help/waits/QDS_PERSIST_TASK_MAIN_LOOP_SLEEP
+        N'QDS_ASYNC_QUEUE', -- https://www.sqlskills.com/help/waits/QDS_ASYNC_QUEUE
+        N'QDS_CLEANUP_STALE_QUERIES_TASK_MAIN_LOOP_SLEEP',
+            -- https://www.sqlskills.com/help/waits/QDS_CLEANUP_STALE_QUERIES_TASK_MAIN_LOOP_SLEEP
+        N'QDS_SHUTDOWN_QUEUE', -- https://www.sqlskills.com/help/waits/QDS_SHUTDOWN_QUEUE
+        N'REDO_THREAD_PENDING_WORK', -- https://www.sqlskills.com/help/waits/REDO_THREAD_PENDING_WORK
+        N'REQUEST_FOR_DEADLOCK_SEARCH', -- https://www.sqlskills.com/help/waits/REQUEST_FOR_DEADLOCK_SEARCH
+        N'RESOURCE_QUEUE', -- https://www.sqlskills.com/help/waits/RESOURCE_QUEUE
+        N'SERVER_IDLE_CHECK', -- https://www.sqlskills.com/help/waits/SERVER_IDLE_CHECK
+        N'SLEEP_BPOOL_FLUSH', -- https://www.sqlskills.com/help/waits/SLEEP_BPOOL_FLUSH
+        N'SLEEP_DBSTARTUP', -- https://www.sqlskills.com/help/waits/SLEEP_DBSTARTUP
+        N'SLEEP_DCOMSTARTUP', -- https://www.sqlskills.com/help/waits/SLEEP_DCOMSTARTUP
+        N'SLEEP_MASTERDBREADY', -- https://www.sqlskills.com/help/waits/SLEEP_MASTERDBREADY
+        N'SLEEP_MASTERMDREADY', -- https://www.sqlskills.com/help/waits/SLEEP_MASTERMDREADY
+        N'SLEEP_MASTERUPGRADED', -- https://www.sqlskills.com/help/waits/SLEEP_MASTERUPGRADED
+        N'SLEEP_MSDBSTARTUP', -- https://www.sqlskills.com/help/waits/SLEEP_MSDBSTARTUP
+        N'SLEEP_SYSTEMTASK', -- https://www.sqlskills.com/help/waits/SLEEP_SYSTEMTASK
+        N'SLEEP_TASK', -- https://www.sqlskills.com/help/waits/SLEEP_TASK
+        N'SLEEP_TEMPDBSTARTUP', -- https://www.sqlskills.com/help/waits/SLEEP_TEMPDBSTARTUP
+        N'SNI_HTTP_ACCEPT', -- https://www.sqlskills.com/help/waits/SNI_HTTP_ACCEPT
+        N'SP_SERVER_DIAGNOSTICS_SLEEP', -- https://www.sqlskills.com/help/waits/SP_SERVER_DIAGNOSTICS_SLEEP
+        N'SQLTRACE_BUFFER_FLUSH', -- https://www.sqlskills.com/help/waits/SQLTRACE_BUFFER_FLUSH
+        N'SQLTRACE_INCREMENTAL_FLUSH_SLEEP', -- https://www.sqlskills.com/help/waits/SQLTRACE_INCREMENTAL_FLUSH_SLEEP
+        N'SQLTRACE_WAIT_ENTRIES', -- https://www.sqlskills.com/help/waits/SQLTRACE_WAIT_ENTRIES
+        N'WAIT_FOR_RESULTS', -- https://www.sqlskills.com/help/waits/WAIT_FOR_RESULTS
+        N'WAITFOR', -- https://www.sqlskills.com/help/waits/WAITFOR
+        N'WAITFOR_TASKSHUTDOWN', -- https://www.sqlskills.com/help/waits/WAITFOR_TASKSHUTDOWN
+        N'WAIT_XTP_RECOVERY', -- https://www.sqlskills.com/help/waits/WAIT_XTP_RECOVERY
+        N'WAIT_XTP_HOST_WAIT', -- https://www.sqlskills.com/help/waits/WAIT_XTP_HOST_WAIT
+        N'WAIT_XTP_OFFLINE_CKPT_NEW_LOG', -- https://www.sqlskills.com/help/waits/WAIT_XTP_OFFLINE_CKPT_NEW_LOG
+        N'WAIT_XTP_CKPT_CLOSE', -- https://www.sqlskills.com/help/waits/WAIT_XTP_CKPT_CLOSE
+        N'XE_DISPATCHER_JOIN', -- https://www.sqlskills.com/help/waits/XE_DISPATCHER_JOIN
+        N'XE_DISPATCHER_WAIT', -- https://www.sqlskills.com/help/waits/XE_DISPATCHER_WAIT
+        N'XE_TIMER_EVENT' -- https://www.sqlskills.com/help/waits/XE_TIMER_EVENT
+        )
+	and waiting_tasks_count > 0
+	) AS Source
+ON (Target.wait_type = Source.wait_type)
+WHEN MATCHED THEN
+UPDATE SET
+	-- https://docs.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-query-store-wait-stats-transact-sql?view=sql-server-2017#wait-categories-mapping-table
+	Target.[category_id] = Source.[category_id],
+	Target.[wait_type] = Source.[wait_type],
+	Target.[waiting_tasks_count] = Source.[waiting_tasks_count],
+	Target.[wait_time_ms] = Source.[wait_time_ms],
+	Target.[max_wait_time_ms] = Source.[max_wait_time_ms],
+	Target.[signal_wait_time_ms] = Source.[signal_wait_time_ms],
+	Target.title = ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20))
+WHEN NOT MATCHED BY TARGET THEN
+INSERT (category_id,
+	[wait_type],
+	[waiting_tasks_count],
+	[wait_time_ms],
+	[max_wait_time_ms],
+	[signal_wait_time_ms], title)
+VALUES (Source.category_id, Source.[wait_type],Source.[waiting_tasks_count],
+		Source.[wait_time_ms], Source.[max_wait_time_ms],
+		Source.[signal_wait_time_ms],
+		ISNULL(@title, CAST( GETDATE() as NVARCHAR(50))));
+
+DBCC SQLPERF('sys.dm_os_wait_stats', CLEAR);
+ 
+END
+GO
+
+create or alter  function qpi.wait_stats_as_of(@date datetime2)
+returns table
+as return (
+select
+	category = CASE category_id
+				WHEN 0 THEN 'Unknown'
+				WHEN 1 THEN 'CPU'
+				WHEN 2 THEN 'Worker Thread'
+				WHEN 3 THEN 'Lock'
+				WHEN 4 THEN 'Latch'
+				WHEN 5 THEN 'Buffer Latch'
+				WHEN 6 THEN 'Buffer IO'
+				WHEN 7 THEN 'Compilation'
+				WHEN 8 THEN 'SQL CLR'
+				WHEN 9 THEN 'Mirroring'
+				WHEN 10 THEN 'Transaction'
+				WHEN 11 THEN 'Idle'
+				WHEN 12 THEN 'Preemptive'
+				WHEN 13 THEN 'Service Broker'
+				WHEN 14 THEN 'Tran Log IO'
+				WHEN 15 THEN 'Network IO'
+				WHEN 16 THEN 'Parallelism'
+				WHEN 17 THEN 'Memory'
+				WHEN 18 THEN 'User Wait'
+				WHEN 19 THEN 'Tracing'
+				WHEN 20 THEN 'Full Text Search'
+				WHEN 21 THEN 'Other Disk IO'
+				WHEN 22 THEN 'Replication'
+				WHEN 23 THEN 'Log Rate Governor'
+			END,
+			*
+from qpi.dm_os_wait_stats_snapshot for system_time all rsi
+where @date is null or @date between rsi.start_time and rsi.end_time 
+);
+go
+CREATE OR ALTER  VIEW qpi.wait_stats
+AS SELECT * FROM  qpi.wait_stats_as_of(GETDATE());
+GO
+
 create   function qpi.query_plan_wait_stats_as_of(@date datetime2)
 returns table
 as return (
@@ -337,7 +495,8 @@ select	q.query_id,
 		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ''),
 		rsi.start_time, rsi.end_time,
 		ws.wait_stats_id, ws.plan_id, ws.runtime_stats_interval_id,
-		ws.wait_category_desc, ws.execution_type_desc, wait_time_s = ws.avg_query_wait_time_ms /1000.0,
+		category = ws.wait_category_desc,
+		ws.execution_type_desc, wait_time_s = ws.avg_query_wait_time_ms /1000.0,
 		interval_mi = datediff(mi, rsi.start_time, rsi.end_time)
 from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
@@ -384,6 +543,8 @@ where (@date is null or @date between rsi.start_time and rsi.end_time)
 
 );
 GO
+-- END wait statistics
+
 
 CREATE OR ALTER VIEW qpi.query_plan_stats
 AS SELECT * FROM qpi.query_plan_stats_as_of(GETDATE());
@@ -545,40 +706,6 @@ GO
 GO
 /*
 -- https://www.sqlskills.com/blogs/paul/how-to-examine-io-subsystem-latencies-from-within-sql-server/
-CREATE VIEW qpi.file_info
-AS SELECT
-	db_name = DB_NAME(vfs.database_id),
-    vfs.database_id,
-	file_name = [mf].[name],
-	size_gb = CAST(ROUND(mf.size /1024.0 /1024 * 8, 1) AS NUMERIC(10,1)),
-    read_latency_ms =
-        CASE WHEN [num_of_reads] = 0
-            THEN 0 ELSE (CAST(ROUND(1.0 * [io_stall_read_ms] / [num_of_reads], 1) AS numeric(5,1))) END,
-    write_latency_ms =
-        CASE WHEN [num_of_writes] = 0
-            THEN 0 ELSE (CAST(ROUND(1.0 * [io_stall_write_ms] / [num_of_writes], 1) AS numeric(5,1)))  END,
-    latency =
-        CASE WHEN ([num_of_reads] = 0 AND [num_of_writes] = 0)
-            THEN 0 ELSE (CAST(ROUND(1.0 * [io_stall] / ([num_of_reads] + [num_of_writes]), 1) AS numeric(5,1))) END,
-    bytes_per_read =
-        CASE WHEN [num_of_reads] = 0
-            THEN 0 ELSE ([num_of_bytes_read] / [num_of_reads]) END,
-    bytes_per_write =
-        CASE WHEN [num_of_writes] = 0
-            THEN 0 ELSE ([num_of_bytes_written] / [num_of_writes]) END,
-    bytes_per_io =
-        CASE WHEN ([num_of_reads] = 0 AND [num_of_writes] = 0)
-            THEN 0 ELSE
-                (([num_of_bytes_read] + [num_of_bytes_written]) /
-                ([num_of_reads] + [num_of_writes])) END,
-    drive = LEFT ([mf].[physical_name], 2),
-	[mf].physical_name
-FROM
-    sys.dm_io_virtual_file_stats (NULL,NULL) AS [vfs]
-JOIN sys.master_files AS [mf]
-    ON [vfs].[database_id] = [mf].[database_id]
-    AND [vfs].[file_id] = [mf].[file_id]
-GO
 */
 
 CREATE TABLE qpi.dm_io_virtual_file_stats_snapshot (
@@ -817,7 +944,7 @@ GO
 CREATE VIEW qpi.sys_info
 AS
 SELECT cpu_count,
-	memory_gb = (select process_memory_limit_mb - non_sos_mem_gap_mb FROM sys.dm_os_job_object),
+	memory_gb = (select process_memory_limit_mb - non_sos_mem_gap_mb FROM sys.dm_os_job_object) /1024,
 	sqlserver_start_time,
 	hyperthread_ratio,
 	physical_cpu_count = cpu_count/hyperthread_ratio
@@ -863,7 +990,7 @@ SELECT memory = REPLACE(type, 'MEMORYCLERK_', '')
    HAVING sum(pages_kb) /1024 /1024 > 0
 UNION ALL
 	SELECT memory = '_Total',
-		mem_gb = (process_memory_limit_mb - non_sos_mem_gap_mb),
+		mem_gb = (process_memory_limit_mb - non_sos_mem_gap_mb) /1024,
 		mem_perc = 1
 	FROM sys.dm_os_job_object;
 GO

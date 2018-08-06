@@ -7,7 +7,7 @@ The following query returns number of requests per second and CPU% used by queri
 select start_time, execution_type_desc,
 	tps =  sum(count_executions)/ min(interval_mi) /60,
 	[cpu %] = ROUND(100 * sum(count_executions*cpu_time_s)/ min(interval_mi) /60 /(SELECT top 1 cpu_count FROM sys.dm_os_sys_info)/*cores*/,1)
-from qpi.query_plan_stats
+from qpi.query_plan_stats_all
 group by start_time, execution_type_desc
 order by start_time desc
 ```
@@ -34,4 +34,12 @@ FROM qpi.file_stats_at( 'M2' )
 SELECT *
 FROM qpi.file_stats
 WHERE database_name = 'tpcc5000'
+```
+
+You can also view wait statistics on the instance:
+```
+select category, wait_s = sum(wait_time_ms)/1000
+from qpi.wait_stats
+group by category_id, category
+order by sum(wait_time_ms) desc
 ```

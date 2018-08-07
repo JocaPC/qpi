@@ -483,21 +483,28 @@ from qpi.dm_os_wait_stats_snapshot for system_time all rsi
 where @date is null or @date between rsi.start_time and rsi.end_time 
 );
 go
-CREATE OR ALTER  VIEW qpi.wait_stats
+CREATE OR ALTER
+VIEW qpi.wait_stats
 AS SELECT * FROM  qpi.wait_stats_as_of(GETDATE());
 GO
 
-create   function qpi.query_plan_wait_stats_as_of(@date datetime2)
-returns table
+CREATE OR ALTER
+VIEW qpi.wait_stats_all
+AS SELECT * FROM  qpi.wait_stats_as_of(null);
+GO
+
+create or alter
+function qpi.query_plan_wait_stats_as_of(@date datetime2)
+	returns table
 as return (
-select	q.query_id, 
+select	 
 		text =  IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text),
 		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ''),
+		category = ws.wait_category_desc, wait_time_s = ws.avg_query_wait_time_ms /1000.0,
+		q.query_id, ws.plan_id, ws.execution_type_desc, 
 		rsi.start_time, rsi.end_time,
-		ws.wait_stats_id, ws.plan_id, ws.runtime_stats_interval_id,
-		category = ws.wait_category_desc,
-		ws.execution_type_desc, wait_time_s = ws.avg_query_wait_time_ms /1000.0,
-		interval_mi = datediff(mi, rsi.start_time, rsi.end_time)
+		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
+		ws.runtime_stats_interval_id, ws.wait_stats_id
 from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
 	join sys.query_store_plan p on p.query_id = q.query_id
@@ -506,9 +513,37 @@ from sys.query_store_query_text t
 where @date is null or @date between rsi.start_time and rsi.end_time 
 );
 go
-CREATE   VIEW qpi.query_plan_wait_stats
+
+CREATE OR ALTER
+VIEW qpi.query_plan_wait_stats
 AS SELECT * FROM  qpi.query_plan_wait_stats_as_of(GETDATE());
 GO
+
+create or alter
+function qpi.query_wait_stats_as_of(@date datetime2)
+	returns table
+as return (
+	select	
+		text = min(text),
+		params = min(params),
+		category, wait_time_s = sum(wait_time_s),
+		execution_type_desc, 
+		start_time = min(start_time), end_time = min(end_time),
+		interval_mi = min(interval_mi)
+from qpi.query_plan_wait_stats_as_of(@date)
+group by query_id, category, execution_type_desc
+);
+go
+
+create or alter
+view qpi.query_wait_stats
+as select * from qpi.query_wait_stats_as_of(getdate())
+go
+
+create or alter
+view qpi.query_wait_stats_all
+as select * from qpi.query_wait_stats_as_of(null)
+go
 
 CREATE OR ALTER  function qpi.query_plan_stats_as_of(@date datetime2)
 returns table

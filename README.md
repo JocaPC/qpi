@@ -2,16 +2,17 @@
 
 Query Performance Insights (QPI) is a collection of useful scripts that enable you find what is happening with your SQL Server. It is a set of views and functions that wrap Query Store and Dynamic Management Views.
 
-## Why I need this kind of library
+## Why I need this kind of library?
 
-SQL Server/Azure SQL Database provide great views that we can use to analyze query performance (dynamic management views and Query Store views). However, sometime it is hard to see what is happening in the database engine. There are DMVs and Query Store, but when I need to get the answer to the simple questions such as "Did query performance changed after I added an index?" or "How many IOPS do we use?", I need to dig into Query Store schema, think about every single report, or search for some useful query.
+SQL Server/Azure SQL Database provide a lot of views that we can use to analyze query performance (dynamic management views and Query Store views). However, sometime it is hard to see what is happening in the database engine. There are DMVs and Query Store, but when we need to get the answer to the simple questions such as "Did query performance changed after I added an index?" or "How many IOPS do we use?", we need to dig into Query Store schema, think about every single report, or search for some useful query.
 
 This is the reason why I have collected the most useful queries that find information from underlying system views, and wrapped them in a set of useful views. Some usefull resources that I have used:
 
  - Paul Randal [Wait statistics library](https://www.sqlskills.com/help/waits/), [Wait statistics - tell me where it hurts](https://www.sqlskills.com/blogs/paul/wait-statistics-or-please-tell-me-where-it-hurts/), [How to examine IO subsystme latencies](https://www.sqlskills.com/blogs/paul/how-to-examine-io-subsystem-latencies-from-within-sql-server/)
  - Erin Stellato [What Virtual Filestats Do, and Do Not, Tell You About I/O Latency](https://sqlperformance.com/2013/10/t-sql-queries/io-latency).
  - Aaron Bertrand [Determine system memory](https://www.mssqltips.com/sqlservertip/2393/determine-sql-server-memory-use-by-database-and-object/)
- - Dimitri Furman & [SqlCat team](https://blogs.msdn.microsoft.com/sqlcat/) blog posts, Tim Ford & Louis Davidson [Performance tunning with DMV](https://www.red-gate.com/library/performance-tuning-with-sql-server-dynamic-management-views), 
+ - Dimitri Furman & [SqlCat team](https://blogs.msdn.microsoft.com/sqlcat/) blog posts
+ - Tim Ford & Louis Davidson [Performance tunning with DMV](https://www.red-gate.com/library/performance-tuning-with-sql-server-dynamic-management-views), 
 
 ## System information
 
@@ -21,6 +22,7 @@ QPI library enables you to easily find basic system information that describe yo
  - `qpi.dm_mem_usage` - returns information about the memory usage.
  - `qpi.dm_db_mem_usage` - returns information about the memory usage in database.
  - `qpi.dm_mem_plan_cache_info` - returns information about the memory usage in plan cache.
+
 Find more information in [system information page](doc/SystemInfo.md).
 
 ## Queries
@@ -49,7 +51,10 @@ QPI library enables you to find statistics that can tell you more about query pe
  - `qpi.wait_stats` - returns information about wait statistics.
  - `qpi.wait_stats_as_of` - returns information about wait statistics at the specified point in time in the past.
  - `qpi.snapshot_wait_stats` - the procedure that takes a snapshot of [sys.dm_os_wait_stats](https://docs.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/sys-dm-os-wait-stats-transact-sql?view=sql-server-2017) and clears the wait stats.
- - `qpi.query_plan_wait_stats` - returns the wait statistics about the qqueries from Query Store.
+ - `qpi.query_wait_stats` - returns the wait statistics about the queries from Query Store.
+ - `qpi.query_wait_stats_as_of` - returns the wait statistics about the queries from Query Store at the specified point in time in the past.
+ - `qpi.query_plan_wait_stats` - returns the wait statistics about the query plans from Query Store.
+ - `qpi.query_plan_wait_stats_as_of` - returns the wait statistics about the query plans from Query Store at the specified point in time in the past.
  
 Find more information in [query performance page](doc/QueryStatistics.md).
 

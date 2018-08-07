@@ -59,9 +59,17 @@ DROP VIEW IF EXISTS qpi.dm_query_locks;
 GO
 DROP VIEW IF EXISTS qpi.wait_stats
 GO
-DROP VIEW IF EXISTS qpi.query_plan_wait_stats;
+DROP VIEW IF EXISTS qpi.wait_stats_all
+GO
+DROP VIEW IF EXISTS qpi.query_wait_stats
+GO
+DROP VIEW IF EXISTS qpi.query_wait_stats_all
 GO
 DROP FUNCTION IF EXISTS qpi.wait_stats_as_of;
+GO
+DROP VIEW IF EXISTS qpi.query_plan_wait_stats;
+GO
+DROP VIEW IF EXISTS qpi.query_plan_wait_stats_all;
 GO
 DROP FUNCTION IF EXISTS qpi.query_stats_as_of;
 GO

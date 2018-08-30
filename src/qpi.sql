@@ -145,6 +145,18 @@ FROM    sys.dm_exec_requests
 WHERE text NOT LIKE '%qpi.dm_queries%'
 GO
 
+CREATE OR ALTER VIEW qpi.dm_bre
+AS
+SELECT r.command,percent_complete = CONVERT(NUMERIC(6,2),r.percent_complete)
+,CONVERT(VARCHAR(20),DATEADD(ms,r.estimated_completion_time,GetDate()),20) AS ETA,
+CONVERT(NUMERIC(10,2),r.total_elapsed_time/1000.0/60.0) AS elapsed_mi,
+CONVERT(NUMERIC(10,2),r.estimated_completion_time/1000.0/60.0/60.0) AS eta_h,
+CONVERT(VARCHAR(1000),(SELECT SUBSTRING(text,r.statement_start_offset/2,
+CASE WHEN r.statement_end_offset = -1 THEN 1000 ELSE (r.statement_end_offset-r.statement_start_offset)/2 END)
+FROM sys.dm_exec_sql_text(sql_handle))) AS query,r.session_id
+FROM sys.dm_exec_requests r WHERE command IN ('RESTORE DATABASE','BACKUP DATABASE') 
+GO
+
 CREATE OR ALTER VIEW qpi.dm_query_locks
 AS
 SELECT   
@@ -230,8 +242,8 @@ FROM qpi.dm_queries blocked
 			CROSS APPLY sys.dm_exec_sql_text(conn.most_recent_sql_handle) AS last_query 
 	LEFT JOIN sys.dm_tran_locks as tl
 	 ON tl.lock_owner_address = w.resource_address 
-	 LEFT JOIN SYS.PARTITIONS p ON p.hobt_id = tl.resource_associated_entity_id
-		LEFT JOIN SYS.OBJECTS obj ON p.object_id = obj.object_id
+	 LEFT JOIN sys.partitions p ON p.hobt_id = tl.resource_associated_entity_id
+		LEFT JOIN sys.objects obj ON p.object_id = obj.object_id
 WHERE w.session_id <> w.blocking_session_id
 GO
 

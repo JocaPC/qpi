@@ -57,6 +57,8 @@ DROP VIEW IF EXISTS qpi.dm_query_stats;
 GO
 DROP VIEW IF EXISTS qpi.dm_query_locks;
 GO
+DROP VIEW IF EXISTS qpi.dm_bre;
+GO
 DROP VIEW IF EXISTS qpi.wait_stats
 GO
 DROP VIEW IF EXISTS qpi.wait_stats_all

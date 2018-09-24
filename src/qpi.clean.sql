@@ -8,6 +8,8 @@
 --------------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS qpi.snapshot_file_stats;
 GO
+DROP VIEW IF EXISTS qpi.db_file_stats;
+GO
 DROP VIEW IF EXISTS qpi.file_stats;
 GO
 DROP VIEW IF EXISTS qpi.dm_volumes;

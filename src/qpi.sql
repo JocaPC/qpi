@@ -859,7 +859,10 @@ FROM sys.master_files AS [mf]
 				ON c.database_id = s.database_id AND c.file_id = s.file_id
 GO
 
-
+CREATE OR ALTER VIEW qpi.db_file_stats
+AS SELECT * FROM qpi.file_stats
+	WHERE db_name = DB_NAME()
+GO
 
 CREATE OR ALTER FUNCTION qpi.file_stats_as_of(@when datetime2(0))
 RETURNS TABLE

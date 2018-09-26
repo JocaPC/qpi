@@ -49,6 +49,20 @@ FROM qpi.file_stats_snapshots
 ORDER BY start_time
 ```
 
+If you want to see file statistics for the current database you can execute the following query:
+
+```
+select	file_name, size_gb, 
+		throughput_mbps, read_mbps, write_mbps,
+		iops, write_iops, read_iops,
+		latency_ms, write_latency_ms, read_latency_ms,
+		kb_per_read, kb_per_write
+from qpi.db_file_stats
+```
+
+
+
 In the `snapshot_name` column you will see the titles that you can use in `qpi.file_stats_at` function.
 
 > You can create a SQL Agent job that periodically takes the snapshots of file performance counters.
+

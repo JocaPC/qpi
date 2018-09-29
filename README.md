@@ -17,7 +17,7 @@ This is the reason why I have collected the most useful queries that find inform
 ## System information
 
 QPI library enables you to easily find basic system information that describe your SQL Server instance. This library contains views that you can use to find number of CPU, size of memory, information about files, using the following views: 
- - `qpi.sys_info` returns system informaiton (number of cores, available memory)
+ - `qpi.sys_info` returns system information (number of cores, available memory)
  - `qpi.dm_cpu_usage` - returns information about the CPU usage.
  - `qpi.dm_mem_usage` - returns information about the memory usage.
  - `qpi.dm_db_mem_usage` - returns information about the memory usage in database.
@@ -41,11 +41,11 @@ QPI library enables you to find information about the queries that are executed 
 
 QPI library enables you to find statistics that can tell you more about query performance using the following views/functions:
  - `qpi.query_stats` - returns execution statistics about the queries.
- - qpi.query_stats_all
- - qpi.query_stats_as_of
+ - `qpi.query_stats_all`
+ - `qpi.query_stats_as_of`
  - `qpi.query_plan_stats` - returns execution statistics about the query plans.
- - qpi.query_plan_stats_ex
- - qpi.query_plan_stats_all
+ - `qpi.query_plan_stats_ex` - returns execution statistics about the query plans including the plan SET options.
+ - `qpi.query_plan_stats_all` - returns all known execution statistics about any query plans in the past.
  - `qpi.query_plan_stats_as_of ` - returns execution statistics about the query plans at the specified point in time in the past.
  - `qpi.dm_query_stats` - returns execution stats about the currently executing queries.
  - `qpi.wait_stats` - returns information about wait statistics.

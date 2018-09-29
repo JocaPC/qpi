@@ -126,3 +126,6 @@ DROP FUNCTION IF EXISTS qpi.compare_context_settings;
 GO
 DROP SCHEMA IF EXISTS qpi;
 GO
+
+DROP VIEW IF EXISTS qpi.dm_recommendations;
+GO

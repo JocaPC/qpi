@@ -1068,3 +1068,13 @@ db_buffer_pages * 100.0 / (SELECT top 1 cntr_value
 )
 FROM src
 GO
+
+CREATE OR ALTER VIEW
+qpi.dm_recommendations
+AS
+SELECT	name, reason, score, 
+		[state] = JSON_VALUE(state, '$.currentValue'),
+        script = JSON_VALUE(details, '$.implementationDetails.script'),
+        details
+FROM sys.dm_db_tuning_recommendations;
+GO

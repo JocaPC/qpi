@@ -71,7 +71,7 @@ Find more information in [file statistics page](doc/FileStatistics.md).
 QPI library simplifies query performance analysis. Some useful scripts and scenarios are shown in [query performance analysis page](doc/QueryPerformanceAnalisys.md).
 
 ## Installation
-QPI library is just a set of views functions and utility tables that you can install on your SQL Server or Azure SQL instance. Currently, it supports SQL Server 2016+ and Azure SQL Database.
-You can download the [source](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.sql) and run it in your database.
+QPI library is just a set of views, functions, and utility tables that you can install on your SQL Server or Azure SQL instance. Currently, it supports SQL Server 2016+ and Azure SQL Database.
+You can download the [source](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.sql) and run it in your database. All functions, views, and tables are placed in `qpi` schema in your database. You can also remove all funcitons and views in `qpi` schema using [cleaning script](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.clean.sql)
 
 > Many views depends on Query Store so make sure that Query store is running on your SQL Server.

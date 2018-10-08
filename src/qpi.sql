@@ -490,7 +490,14 @@ select
 				WHEN 22 THEN 'Replication'
 				WHEN 23 THEN 'Log Rate Governor'
 			END,
-			*
+			wait_type,
+			wait_time_s = wait_time_ms /1000, 
+			avg_wait_time = wait_time_ms / DATEDIFF(ms, start_time, GETUTCDATE()),
+			signal_wait_time_s = signal_wait_time_ms /1000, 
+			avg_signal_wait_time = signal_wait_time_ms / DATEDIFF(ms, start_time, GETUTCDATE()),
+			max_wait_time_s = max_wait_time_ms /1000,
+			category_id,
+			snapshot_time = start_time
 from qpi.dm_os_wait_stats_snapshot for system_time all rsi
 where @date is null or @date between rsi.start_time and rsi.end_time 
 );

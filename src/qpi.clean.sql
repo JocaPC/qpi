@@ -129,3 +129,8 @@ GO
 
 DROP VIEW IF EXISTS qpi.dm_recommendations;
 GO
+
+DROP VIEW IF EXISTS qpi.nodes;
+GO
+DROP VIEW IF EXISTS qpi.db_nodes;
+GO

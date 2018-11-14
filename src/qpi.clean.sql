@@ -124,13 +124,11 @@ DROP FUNCTION IF EXISTS qpi.us2min;
 GO
 DROP FUNCTION IF EXISTS qpi.compare_context_settings;
 GO
-DROP SCHEMA IF EXISTS qpi;
-GO
-
 DROP VIEW IF EXISTS qpi.dm_recommendations;
 GO
-
 DROP VIEW IF EXISTS qpi.nodes;
 GO
 DROP VIEW IF EXISTS qpi.db_nodes;
+GO
+DROP SCHEMA IF EXISTS qpi;
 GO

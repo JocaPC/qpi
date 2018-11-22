@@ -334,7 +334,8 @@ USING (
 	[waiting_tasks_count],
 	[wait_time_ms],
 	[max_wait_time_ms],
-	[signal_wait_time_ms]
+	[signal_wait_time_ms],
+	info = 'https://www.sqlskills.com/help/waits/' + [wait_type]
 	from sys.dm_os_wait_stats
 	-- see: https://www.sqlskills.com/blogs/paul/wait-statistics-or-please-tell-me-where-it-hurts/
 	-- Last updated June 13, 2018

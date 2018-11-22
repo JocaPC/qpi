@@ -337,7 +337,7 @@ USING (
 														THEN 23		
 		ELSE NULL
 	END,
-	[wait_type],
+	wait_type = [wait_type] COLLATE Latin1_General_100_BIN2,
 	[waiting_tasks_count],
 	[wait_time_ms],
 	[max_wait_time_ms],

@@ -92,13 +92,9 @@ GO
 
 CREATE OR ALTER VIEW qpi.queries_ex
 as
-select	text =  IIF(LEFT(query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text),
-		params = IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), ''),
-		q.query_text_id, query_id, q.context_settings_id,
+select	q.text, q.params, q.query_text_id, query_id, q.context_settings_id,
 		o.*		
-FROM sys.query_store_query_text t
-	JOIN sys.query_store_query q
-		ON t.query_text_id = q.query_text_id
+FROM qpi.queries q
 		JOIN sys.query_context_settings ctx
 			ON q.context_settings_id = ctx.context_settings_id
 			CROSS APPLY qpi.decode_options(ctx.set_options) o
@@ -106,13 +102,10 @@ GO
 
 CREATE OR ALTER VIEW qpi.query_texts
 as
-select	text =  IIF(LEFT(query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text),
-		params = IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), ''),
-		q.query_text_id, 
+select	q.text, q.params, q.query_text_id, 
 		queries = string_agg(concat(query_id,'(', context_settings_id,')'),',')		
-from sys.query_store_query_text t
-	join sys.query_store_query q on t.query_text_id = q.query_text_id
-group by query_sql_text, q.query_text_id
+from qpi.queries q
+group by q.text, q.params, q.query_text_id
 GO
 
 -- The list of currently executing queries that are probably not in Query Store.

@@ -775,7 +775,8 @@ CREATE TABLE qpi.dm_io_virtual_file_stats_snapshot (
 	start_time datetime2 GENERATED ALWAYS AS ROW START,
 	end_time datetime2 GENERATED ALWAYS AS ROW END,
 	PERIOD FOR SYSTEM_TIME (start_time, end_time),
-	PRIMARY KEY (database_id, file_id)  
+	PRIMARY KEY (database_id, file_id),
+	INDEX UQ_snapshot_title UNIQUE (title, database_id, file_id)
  ) WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.dm_io_virtual_file_stats_snapshot_history));
 GO
 CREATE INDEX ix_file_snapshot_interval_history
@@ -851,18 +852,18 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 		file_name = prev.file_name,
 		cur.size_gb,
 		throughput_mbps
-			= CAST((cur.num_of_bytes_read - prev.num_of_bytes_read)/1024.0/1024.0 / DATEDIFF(second, prev.start_time, cur.start_time) AS numeric(10,2))
-			+ CAST((cur.num_of_bytes_written - prev.num_of_bytes_written)/1024.0/1024.0 / DATEDIFF(second, prev.start_time, cur.start_time) AS numeric(10,2)),
+			= CAST((cur.num_of_bytes_read - prev.num_of_bytes_read)/1024.0/1024.0 / (DATEDIFF(millisecond, prev.start_time, cur.start_time) / 1000.) AS numeric(10,2))
+			+ CAST((cur.num_of_bytes_written - prev.num_of_bytes_written)/1024.0/1024.0 / (DATEDIFF(millisecond, prev.start_time, cur.start_time) / 1000.) AS numeric(10,2)),
 		read_mbps
-			= CAST((cur.num_of_bytes_read - prev.num_of_bytes_read)/1024.0/1024.0 / DATEDIFF(second, prev.start_time, cur.start_time) AS numeric(10,2)),
+			= CAST((cur.num_of_bytes_read - prev.num_of_bytes_read)/1024.0/1024.0 / (DATEDIFF(millisecond, prev.start_time, cur.start_time) / 1000.) AS numeric(10,2)),
 		write_mbps
-			= CAST((cur.num_of_bytes_written - prev.num_of_bytes_written)/1024.0/1024.0 / DATEDIFF(second, prev.start_time, cur.start_time) AS numeric(10,2)),
+			= CAST((cur.num_of_bytes_written - prev.num_of_bytes_written)/1024.0/1024.0 / (DATEDIFF(millisecond, prev.start_time, cur.start_time) / 1000.) AS numeric(10,2)),
 		iops
-			= (cur.num_of_reads - prev.num_of_reads + cur.num_of_writes - prev.num_of_writes)/ DATEDIFF(second, prev.start_time, cur.start_time),
+			= (cur.num_of_reads - prev.num_of_reads + cur.num_of_writes - prev.num_of_writes)/ (DATEDIFF(millisecond, prev.start_time, cur.start_time) / 1000.),
 		read_iops
-			= (cur.num_of_reads - prev.num_of_reads)/ DATEDIFF(second, prev.start_time, cur.start_time),
+			= (cur.num_of_reads - prev.num_of_reads)/ (DATEDIFF(millisecond, prev.start_time, cur.start_time) / 1000.),
 		write_iops
-			= (cur.num_of_writes - prev.num_of_writes)/ DATEDIFF(second, prev.start_time, cur.start_time),
+			= (cur.num_of_writes - prev.num_of_writes)/ (DATEDIFF(millisecond, prev.start_time, cur.start_time) / 1000.),
 		latency_ms
 			= CASE WHEN ( (cur.num_of_reads - prev.num_of_reads) = 0 AND (cur.num_of_writes - prev.num_of_writes) = 0)
 				THEN 0 ELSE (CAST(ROUND(1.0 * (cur.io_stall - prev.io_stall) / ((cur.num_of_reads - prev.num_of_reads) + (cur.num_of_writes - prev.num_of_writes)), 1) AS numeric(5,1))) END,

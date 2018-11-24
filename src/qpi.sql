@@ -894,8 +894,11 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 		JOIN qpi.dm_io_virtual_file_stats_snapshot for system_time all as prev 
 			ON cur.file_id = prev.file_id
 			AND cur.database_id = prev.database_id
-			AND ((@end_date is not null and cur.start_time = prev.end_time)	-- cur is snapshot history => get the previous snapshot history record
-				OR (@end_date is null and prev.end_time > GETDATE()))		-- cur is dm_io_virtual_file_stats => get the latest snapshot history record
+			AND (
+				((@end_date is not null or @milestone is not null) and cur.start_time = prev.end_time)	-- cur is snapshot history => get the previous snapshot history record
+				OR 
+				((@end_date is null and @milestone is null) and prev.end_time > GETDATE())				-- cur is dm_io_virtual_file_stats => get the latest snapshot history record
+			)		
 	WHERE (@database_id is null or @database_id = prev.database_id)
 )
 GO

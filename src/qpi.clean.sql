@@ -2,7 +2,8 @@
 --	SQL Server & Azure SQL Managed Instance - Query Performance Insights
 --	Author: Jovan Popovic
 --------------------------------------------------------------------------------
-
+use HeroDb
+go
 --------------------------------------------------------------------------------
 --	File Statistics
 --------------------------------------------------------------------------------
@@ -18,7 +19,13 @@ DROP VIEW IF EXISTS qpi.file_stats_snapshots
 GO
 DROP FUNCTION IF EXISTS qpi.file_stats_as_of;
 GO
+DROP FUNCTION IF EXISTS qpi.db_file_stats_as_of;
+GO
 DROP FUNCTION IF EXISTS qpi.file_stats_at;
+GO
+DROP FUNCTION IF EXISTS qpi.db_file_stats_at;
+GO
+DROP FUNCTION IF EXISTS qpi.fn_file_stats;
 GO
 BEGIN TRY
 	EXEC('ALTER TABLE qpi.dm_io_virtual_file_stats_snapshot 

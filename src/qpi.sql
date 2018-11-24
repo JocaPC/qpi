@@ -1,5 +1,3 @@
-use HeroDb;
-go
 --------------------------------------------------------------------------------
 --	SQL Server & Azure SQL Managed Instance - Query Performance Insights
 --	Author: Jovan Popovic

@@ -827,7 +827,7 @@ AS RETURN (
 					title, start_time, end_time
 			FROM qpi.dm_io_virtual_file_stats_snapshot for system_time as of @end_date s
 			WHERE @end_date is not null
-			AND s.database_id = @database_id
+			AND (@database_id is null or s.database_id = @database_id)
 			UNION ALL
 			SELECT	[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall],
 					[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
@@ -835,7 +835,7 @@ AS RETURN (
 			FROM qpi.dm_io_virtual_file_stats_snapshot for system_time all as s
 			WHERE @milestone is not null
 			AND title = @milestone
-			AND s.database_id = @database_id
+			AND (@database_id is null or s.database_id = @database_id)
 			UNION ALL
 			SELECT	s.[file_id],[size_gb]=mf.size/1024/1024,[io_stall_read_ms],[io_stall_write_ms],[io_stall],
 						[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
@@ -845,7 +845,7 @@ AS RETURN (
 			WHERE @milestone is null AND @end_date is null
 		)
 		SELECT
-		db_name = DB_NAME(@database_id),
+		db_name = prev.db_name,
 		file_name = prev.file_name,
 		cur.size_gb,
 		throughput_mbps
@@ -892,7 +892,7 @@ AS RETURN (
 		JOIN qpi.dm_io_virtual_file_stats_snapshot for system_time all as prev 
 			ON cur.file_id = prev.file_id AND ((@end_date is not null and cur.start_time = prev.end_time)	-- cur is snapshot history => get the previous snapshot history record
 				OR (@end_date is null and prev.end_time > GETDATE()))		-- cur is dm_io_virtual_file_stats => get the latest snapshot history record
-	WHERE @database_id = prev.database_id
+	WHERE (@database_id is null or @database_id = prev.database_id)
 )
 GO
 

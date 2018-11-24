@@ -1,3 +1,5 @@
+use HeroDb;
+go
 --------------------------------------------------------------------------------
 --	SQL Server & Azure SQL Managed Instance - Query Performance Insights
 --	Author: Jovan Popovic
@@ -766,8 +768,8 @@ CREATE TABLE qpi.dm_io_virtual_file_stats_snapshot (
 	[io_stall] [bigint] NOT NULL,
 	[num_of_bytes_read] [bigint] NOT NULL,
 	[num_of_bytes_written] [bigint] NOT NULL,
-	[num_of_reads] [bigint] NOT NULL,
-	[num_of_writes] [bigint] NOT NULL,
+	[num_of_reads] [bigint] NOT NULL check (num_of_reads >= 0),
+	[num_of_writes] [bigint] NOT NULL check (num_of_writes >= 0),
 	title nvarchar(500),
 	interval_mi int,
 	start_time datetime2 GENERATED ALWAYS AS ROW START,
@@ -819,17 +821,17 @@ CREATE OR ALTER FUNCTION qpi.fn_file_stats(@database_id int, @end_date datetime2
 RETURNS TABLE
 AS RETURN ( 
 	-- for testing: DECLARE @database_id int = DB_ID(), @end_date datetime2 = null, @milestone nvarchar(100) = null;
-	with cur (	[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall],
+with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall],
 				[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes], title, start_time, end_time)
 	as (
-			SELECT	[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall],
+			SELECT	s.database_id, [file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall],
 					[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
 					title, start_time, end_time
 			FROM qpi.dm_io_virtual_file_stats_snapshot for system_time as of @end_date s
 			WHERE @end_date is not null
 			AND (@database_id is null or s.database_id = @database_id)
 			UNION ALL
-			SELECT	[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall],
+			SELECT	database_id,[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall],
 					[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
 					title, start_time, end_time
 			FROM qpi.dm_io_virtual_file_stats_snapshot for system_time all as s
@@ -837,7 +839,7 @@ AS RETURN (
 			AND title = @milestone
 			AND (@database_id is null or s.database_id = @database_id)
 			UNION ALL
-			SELECT	s.[file_id],[size_gb]=mf.size/1024/1024,[io_stall_read_ms],[io_stall_write_ms],[io_stall],
+			SELECT	s.database_id,s.[file_id],[size_gb]=mf.size/1024/1024,[io_stall_read_ms],[io_stall_write_ms],[io_stall],
 						[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
 						title = 'Latest', start_time = GETDATE(), end_time = CAST('9999-12-31T00:00:00.0000' AS DATETIME2)
 				FROM sys.dm_io_virtual_file_stats (@database_id, null) s
@@ -890,7 +892,9 @@ AS RETURN (
 		interval_mi = DATEDIFF(minute, prev.start_time, cur.start_time)
 	FROM cur
 		JOIN qpi.dm_io_virtual_file_stats_snapshot for system_time all as prev 
-			ON cur.file_id = prev.file_id AND ((@end_date is not null and cur.start_time = prev.end_time)	-- cur is snapshot history => get the previous snapshot history record
+			ON cur.file_id = prev.file_id
+			AND cur.database_id = prev.database_id
+			AND ((@end_date is not null and cur.start_time = prev.end_time)	-- cur is snapshot history => get the previous snapshot history record
 				OR (@end_date is null and prev.end_time > GETDATE()))		-- cur is dm_io_virtual_file_stats => get the latest snapshot history record
 	WHERE (@database_id is null or @database_id = prev.database_id)
 )

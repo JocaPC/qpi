@@ -937,6 +937,14 @@ AS RETURN (
 );
 GO
 
+IF SERVERPROPERTY('engineedition') IN (2,3,4)
+EXEC sp_executesql N'CREATE FUNCTION qpi.memory_mb() RETURNS int AS BEGIN RETURN (SELECT size_mb = MIN(CAST(size_mb AS INT)) FROM (SELECT size_mb = maximum FROM [master].[sys].[configurations] WHERE NAME = ''Max server memory (MB)'' UNION ALL SELECT size_mb = available_page_file_kb / 1024 FROM [master].[sys].[dm_os_sys_memory]) as m); END';
+GO
+
+IF SERVERPROPERTY('engineedition') IN (5,8)
+EXEC sp_executesql N'CREATE FUNCTION qpi.memory_mb() RETURNS int AS BEGIN RETURN (SELECT process_memory_limit_mb - non_sos_mem_gap_mb FROM sys.dm_os_job_object); END';
+GO
+
 CREATE VIEW qpi.file_stats_snapshots
 AS
 SELECT DISTINCT snapshot_name = title, start_time, end_time
@@ -957,7 +965,7 @@ GO
 CREATE VIEW qpi.sys_info
 AS
 SELECT cpu_count,
-	memory_gb = (select process_memory_limit_mb - non_sos_mem_gap_mb FROM sys.dm_os_job_object) /1024,
+	memory_gb = qpi.memory_mb() /1024.,
 	sqlserver_start_time,
 	hyperthread_ratio,
 	physical_cpu_count = cpu_count/hyperthread_ratio
@@ -997,15 +1005,14 @@ CREATE VIEW qpi.dm_mem_usage
 AS
 SELECT memory = REPLACE(type, 'MEMORYCLERK_', '') 
      , mem_gb = sum(pages_kb)/1024/1024
-	 , mem_perc = ROUND(sum(pages_kb)/1024.0/ (select process_memory_limit_mb - non_sos_mem_gap_mb FROM sys.dm_os_job_object),2)
+	 , mem_perc = ROUND(sum(pages_kb)/1024.0/ qpi.memory_mb() ,2)
    FROM sys.dm_os_memory_clerks
    GROUP BY type
    HAVING sum(pages_kb) /1024 /1024 > 0
 UNION ALL
 	SELECT memory = '_Total',
-		mem_gb = (process_memory_limit_mb - non_sos_mem_gap_mb) /1024,
-		mem_perc = 1
-	FROM sys.dm_os_job_object;
+		mem_gb = qpi.memory_mb() /1024,
+		mem_perc = 1;
 GO
 -- https://www.mssqltips.com/sqlservertip/2393/determine-sql-server-memory-use-by-database-and-object/
 CREATE VIEW qpi.dm_db_mem_usage

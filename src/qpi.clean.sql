@@ -26,6 +26,8 @@ DROP FUNCTION IF EXISTS qpi.db_file_stats_at;
 GO
 DROP FUNCTION IF EXISTS qpi.fn_file_stats;
 GO
+DROP FUNCTION IF EXISTS qpi.memory_mb;
+GO
 BEGIN TRY
 	EXEC('ALTER TABLE qpi.dm_io_virtual_file_stats_snapshot 
 			SET (SYSTEM_VERSIONING = OFF)');

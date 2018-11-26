@@ -785,7 +785,7 @@ AS BEGIN
 MERGE qpi.dm_io_virtual_file_stats_snapshot AS Target
 USING (
 	SELECT db_name = DB_NAME(vfs.database_id),vfs.database_id,
-		file_name = [mf].[name],size_gb = mf.size /1024/ 1024,[vfs].[file_id],
+		file_name = [mf].[name],size_gb = 8 * mf.size /1024/ 1024,[vfs].[file_id],
 		[io_stall_read_ms],[io_stall_write_ms],[io_stall],
 		[num_of_bytes_read], [num_of_bytes_written],
 		[num_of_reads], [num_of_writes]
@@ -838,7 +838,7 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 			AND title = @milestone
 			AND (@database_id is null or s.database_id = @database_id)
 			UNION ALL
-			SELECT	s.database_id,s.[file_id],[size_gb]=mf.size/1024/1024,[io_stall_read_ms],[io_stall_write_ms],[io_stall],
+			SELECT	s.database_id,s.[file_id],[size_gb]=8*mf.size/1024/1024,[io_stall_read_ms],[io_stall_write_ms],[io_stall],
 						[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
 						title = 'Latest', start_time = GETDATE(), end_time = CAST('9999-12-31T00:00:00.0000' AS DATETIME2)
 				FROM sys.dm_io_virtual_file_stats (@database_id, null) s

@@ -12,7 +12,7 @@ DROP VIEW IF EXISTS qpi.db_file_stats;
 GO
 DROP VIEW IF EXISTS qpi.file_stats;
 GO
-DROP VIEW IF EXISTS qpi.dm_volumes;
+DROP VIEW IF EXISTS qpi.volumes;
 GO
 DROP VIEW IF EXISTS qpi.file_stats_snapshots
 GO

@@ -951,7 +951,7 @@ SELECT DISTINCT snapshot_name = title, start_time, end_time
 FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
 GO
 
-CREATE OR ALTER VIEW qpi.dm_volumes
+CREATE OR ALTER VIEW qpi.volumes
 AS
 SELECT	volume_mount_point,
 		used_gb = MIN(total_bytes / 1024 / 1024 / 1024),

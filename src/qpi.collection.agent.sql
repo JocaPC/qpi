@@ -4,8 +4,9 @@
 --	Author: Jovan Popovic
 --------------------------------------------------------------------------------
 
-DECLARE @database sysname = <<PUT HERE THE NAME OF THE DATABABASE WHERE YOU INSTALLED QPI]>>;
-
+DECLARE @database sysname = <put the name of the database where qoi procedures are placed>;
+DECLARE @job_name sysname;
+SET @job_name = @database + N'-snapshot-qpi-stats';
 /****** Object:  Job [snapshot-qpi-stats]    Script Date: 10/5/2018 7:52:13 AM ******/
 BEGIN TRANSACTION
 DECLARE @ReturnCode INT
@@ -19,7 +20,7 @@ IF (@@ERROR <> 0 OR @ReturnCode <> 0) GOTO QuitWithRollback
 END
 
 DECLARE @jobId BINARY(16)
-EXEC @ReturnCode =  msdb.dbo.sp_add_job @job_name=N'snapshot-qpi-stats', 
+EXEC @ReturnCode =  msdb.dbo.sp_add_job @job_name=@job_name, 
 		@enabled=1, 
 		@notify_level_eventlog=0, 
 		@notify_level_email=0, 

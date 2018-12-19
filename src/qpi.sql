@@ -436,6 +436,10 @@ UPDATE SET
 	Target.[max_wait_time_ms] = Source.[max_wait_time_ms],
 	Target.[signal_wait_time_ms] = Source.[signal_wait_time_ms],
 	Target.title = ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20))
+	-- IMPORTANT: DO NOT subtract Source-Target because the source always has a diff. 
+	-- On each snapshot wait starts are reset to 0 - see DBCC SQLPERF('sys.dm_os_wait_stats', CLEAR);
+	-- Therefore, current snapshot is diff.
+	-- #alzheimer
 WHEN NOT MATCHED BY TARGET THEN
 INSERT (category_id,
 	[wait_type],
@@ -446,7 +450,7 @@ INSERT (category_id,
 VALUES (Source.category_id, Source.[wait_type],Source.[waiting_tasks_count],
 		Source.[wait_time_ms], Source.[max_wait_time_ms],
 		Source.[signal_wait_time_ms],
-		ISNULL(@title, CAST( GETDATE() as NVARCHAR(50))));
+		ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)));
 
 DBCC SQLPERF('sys.dm_os_wait_stats', CLEAR);
  

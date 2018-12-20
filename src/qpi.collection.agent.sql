@@ -4,7 +4,7 @@
 --	Author: Jovan Popovic
 --------------------------------------------------------------------------------
 
-DECLARE @database sysname = <put the name of the database where qoi procedures are placed>;
+DECLARE @database sysname = <'put the name of the database where QPI procedures are placed'>;
 DECLARE @job_name sysname;
 SET @job_name = @database + N'-snapshot-qpi-stats';
 /****** Object:  Job [snapshot-qpi-stats]    Script Date: 10/5/2018 7:52:13 AM ******/

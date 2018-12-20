@@ -84,14 +84,14 @@ CREATE OR ALTER VIEW qpi.queries
 as
 select	text =  IIF(LEFT(query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text),
 		params = IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), ''),
-		q.query_text_id, query_id, context_settings_id		
+		q.query_text_id, query_id, context_settings_id, q.query_hash		
 from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
 GO
 
 CREATE OR ALTER VIEW qpi.queries_ex
 as
-select	q.text, q.params, q.query_text_id, query_id, q.context_settings_id,
+select	q.text, q.params, q.query_text_id, query_id, q.context_settings_id, q.query_hash,
 		o.*		
 FROM qpi.queries q
 		JOIN sys.query_context_settings ctx
@@ -262,73 +262,112 @@ CREATE INDEX ix_dm_os_wait_stats_snapshot
 	ON qpi.dm_os_wait_stats_snapshot_history(end_time);
 GO
 
-CREATE PROCEDURE qpi.snapshot_wait_stats @title nvarchar(200) = NULL
-AS BEGIN
-MERGE qpi.dm_os_wait_stats_snapshot AS Target
-USING (
-	SELECT
-	category_id = CASE
-		WHEN wait_type = 'Unknown'				THEN 0
-		WHEN wait_type = 'SOS_SCHEDULER_YIELD'	THEN 1
-		WHEN wait_type = 'SOS_WORK_DISPATCHER'	THEN 1
-		WHEN wait_type = 'THREADPOOL'			THEN 2
-		WHEN wait_type LIKE 'LCK_M_%'			THEN 3
-		WHEN wait_type LIKE 'LATCH_%'			THEN 4
-		WHEN wait_type LIKE 'PAGELATCH_%'		THEN 5
-		WHEN wait_type LIKE 'PAGEIOLATCH_%'		THEN 6
-		WHEN wait_type = 'RESOURCE_SEMAPHORE_QUERY_COMPILE'
+CREATE OR ALTER FUNCTION qpi.__wait_stats_category_id(@wait_type varchar(128))
+RETURNS TABLE
+AS RETURN ( SELECT
+	CASE
+		WHEN @wait_type = 'Unknown'				THEN 0
+		WHEN @wait_type = 'SOS_SCHEDULER_YIELD'	THEN 1
+		WHEN @wait_type = 'SOS_WORK_DISPATCHER'	THEN 1
+		WHEN @wait_type = 'THREADPOOL'			THEN 2
+		WHEN @wait_type LIKE 'LCK_M_%'			THEN 3
+		WHEN @wait_type LIKE 'LATCH_%'			THEN 4
+		WHEN @wait_type LIKE 'PAGELATCH_%'		THEN 5
+		WHEN @wait_type LIKE 'PAGEIOLATCH_%'		THEN 6
+		WHEN @wait_type = 'RESOURCE_SEMAPHORE_QUERY_COMPILE'
 												THEN 7
-		WHEN wait_type LIKE 'CLR%'				THEN 8
-		WHEN wait_type LIKE 'SQLCLR%'			THEN 8
-		WHEN wait_type LIKE 'DBMIRROR%'			THEN 9
-		WHEN wait_type LIKE 'XACT%'				THEN 10
-		WHEN wait_type LIKE 'DTC%'				THEN 10
-		WHEN wait_type LIKE 'TRAN_MARKLATCH_%'	THEN 10
-		WHEN wait_type = 'TRANSACTION_MUTEX'	THEN 10
-		WHEN wait_type LIKE 'MSQL_XACT_%'		THEN 10
-		WHEN wait_type LIKE 'SLEEP_%'			THEN 11
-		WHEN wait_type IN ('LAZYWRITER_SLEEP', 'SQLTRACE_BUFFER_FLUSH',
+		WHEN @wait_type LIKE 'CLR%'				THEN 8
+		WHEN @wait_type LIKE 'SQLCLR%'			THEN 8
+		WHEN @wait_type LIKE 'DBMIRROR%'			THEN 9
+		WHEN @wait_type LIKE 'XACT%'				THEN 10
+		WHEN @wait_type LIKE 'DTC%'				THEN 10
+		WHEN @wait_type LIKE 'TRAN_MARKLATCH_%'	THEN 10
+		WHEN @wait_type = 'TRANSACTION_MUTEX'	THEN 10
+		WHEN @wait_type LIKE 'MSQL_XACT_%'		THEN 10
+		WHEN @wait_type LIKE 'SLEEP_%'			THEN 11
+		WHEN @wait_type IN ('LAZYWRITER_SLEEP', 'SQLTRACE_BUFFER_FLUSH',
 							'SQLTRACE_INCREMENTAL_FLUSH_SLEEP', 'SQLTRACE_WAIT_ENTRIES',
 							'FT_IFTS_SCHEDULER_IDLE_WAIT', 'XE_DISPATCHER_WAIT',
 							'REQUEST_FOR_DEADLOCK_SEARCH', 'LOGMGR_QUEUE',
 							'ONDEMAND_TASK_QUEUE', 'CHECKPOINT_QUEUE', 'XE_TIMER_EVENT')
 												THEN 11
-		WHEN wait_type LIKE 'PREEMPTIVE_%'		THEN 12
-		WHEN wait_type LIKE 'BROKER_%' AND wait_type <> 'BROKER_RECEIVE_WAITFOR'
+		WHEN @wait_type LIKE 'PREEMPTIVE_%'		THEN 12
+		WHEN @wait_type LIKE 'BROKER_%' AND @wait_type <> 'BROKER_RECEIVE_WAITFOR'
 												THEN 13
-		WHEN wait_type IN ('LOGMGR', 'LOGBUFFER', 'LOGMGR_RESERVE_APPEND', 'LOGMGR_FLUSH',
+		WHEN @wait_type IN ('LOGMGR', 'LOGBUFFER', 'LOGMGR_RESERVE_APPEND', 'LOGMGR_FLUSH',
 							'LOGMGR_PMM_LOG', 'CHKPT', 'WRITELOG')
 														THEN 14
-		WHEN wait_type IN ('ASYNC_NETWORK_IO', 'NET_WAITFOR_PACKET', 'PROXY_NETWORK_IO', 
+		WHEN @wait_type IN ('ASYNC_NETWORK_IO', 'NET_WAITFOR_PACKET', 'PROXY_NETWORK_IO', 
 							'EXTERNAL_SCRIPT_NETWORK_IO')
 														THEN 15														
-		WHEN wait_type IN ('CXPACKET', 'EXCHANGE')
+		WHEN @wait_type IN ('CXPACKET', 'EXCHANGE')
 														THEN 16
-		WHEN wait_type IN ('RESOURCE_SEMAPHORE', 'CMEMTHREAD', 'CMEMPARTITIONED', 'EE_PMOLOCK',
+		WHEN @wait_type IN ('RESOURCE_SEMAPHORE', 'CMEMTHREAD', 'CMEMPARTITIONED', 'EE_PMOLOCK',
 							'MEMORY_ALLOCATION_EXT', 'RESERVED_MEMORY_ALLOCATION_EXT', 'MEMORY_GRANT_UPDATE')
 														THEN 17
-		WHEN wait_type IN ('WAITFOR', 'WAIT_FOR_RESULTS', 'BROKER_RECEIVE_WAITFOR')
+		WHEN @wait_type IN ('WAITFOR', 'WAIT_FOR_RESULTS', 'BROKER_RECEIVE_WAITFOR')
 														THEN 18
-		WHEN wait_type IN ('TRACEWRITE', 'SQLTRACE_LOCK', 'SQLTRACE_FILE_BUFFER', 'SQLTRACE_FILE_WRITE_IO_COMPLETION', 'SQLTRACE_FILE_READ_IO_COMPLETION', 'SQLTRACE_PENDING_BUFFER_WRITERS', 'SQLTRACE_SHUTDOWN', 'QUERY_TRACEOUT', 'TRACE_EVTNOTIFF')
+		WHEN @wait_type IN ('TRACEWRITE', 'SQLTRACE_LOCK', 'SQLTRACE_FILE_BUFFER', 'SQLTRACE_FILE_WRITE_IO_COMPLETION', 'SQLTRACE_FILE_READ_IO_COMPLETION', 'SQLTRACE_PENDING_BUFFER_WRITERS', 'SQLTRACE_SHUTDOWN', 'QUERY_TRACEOUT', 'TRACE_EVTNOTIFF')
 														THEN 19
-		WHEN wait_type IN ('FT_RESTART_CRAWL', 'FULLTEXT GATHERER', 'MSSEARCH', 'FT_METADATA_MUTEX', 'FT_IFTSHC_MUTEX', 'FT_IFTSISM_MUTEX', 'FT_IFTS_RWLOCK', 'FT_COMPROWSET_RWLOCK', 'FT_MASTER_MERGE', 'FT_PROPERTYLIST_CACHE', 'FT_MASTER_MERGE_COORDINATOR', 'PWAIT_RESOURCE_SEMAPHORE_FT_PARALLEL_QUERY_SYNC')
+		WHEN @wait_type IN ('FT_RESTART_CRAWL', 'FULLTEXT GATHERER', 'MSSEARCH', 'FT_METADATA_MUTEX', 'FT_IFTSHC_MUTEX', 'FT_IFTSISM_MUTEX', 'FT_IFTS_RWLOCK', 'FT_COMPROWSET_RWLOCK', 'FT_MASTER_MERGE', 'FT_PROPERTYLIST_CACHE', 'FT_MASTER_MERGE_COORDINATOR', 'PWAIT_RESOURCE_SEMAPHORE_FT_PARALLEL_QUERY_SYNC')
 														THEN 20
-		WHEN wait_type IN ('ASYNC_IO_COMPLETION', 'IO_COMPLETION', 'BACKUPIO',
+		WHEN @wait_type IN ('ASYNC_IO_COMPLETION', 'IO_COMPLETION', 'BACKUPIO',
 							'WRITE_COMPLETION', 'IO_QUEUE_LIMIT', 'IO_RETRY')
 														THEN 21
-		WHEN wait_type IN ('REPLICA_WRITES', 'FCB_REPLICA_WRITE', 'FCB_REPLICA_READ', 'PWAIT_HADRSIM')
+		WHEN @wait_type IN ('REPLICA_WRITES', 'FCB_REPLICA_WRITE', 'FCB_REPLICA_READ', 'PWAIT_HADRSIM')
 														THEN 22
-		WHEN wait_type LIKE 'SE_REPL_%'					THEN 22
-		WHEN wait_type LIKE 'REPL_%'					THEN 22
-		WHEN wait_type LIKE 'HADR_%'
-		AND	 wait_type <> 'HADR_THROTTLE_LOG_RATE_GOVERNOR'
+		WHEN @wait_type LIKE 'SE_REPL_%'					THEN 22
+		WHEN @wait_type LIKE 'REPL_%'					THEN 22
+		WHEN @wait_type LIKE 'HADR_%'
+		AND	 @wait_type <> 'HADR_THROTTLE_LOG_RATE_GOVERNOR'
 														THEN 22
-		WHEN wait_type LIKE 'PWAIT_HADR_%'				THEN 22
-		WHEN wait_type IN ('LOG_RATE_GOVERNOR', 'POOL_LOG_RATE_GOVERNOR',
+		WHEN @wait_type LIKE 'PWAIT_HADR_%'				THEN 22
+		WHEN @wait_type IN ('LOG_RATE_GOVERNOR', 'POOL_LOG_RATE_GOVERNOR',
 							'HADR_THROTTLE_LOG_RATE_GOVERNOR', 'INSTANCE_LOG_RATE_GOVERNOR')
 														THEN 23		
 		ELSE NULL
-	END,
+	END AS category_id
+);
+GO
+
+CREATE OR ALTER FUNCTION qpi.__wait_stats_category(@category_id tinyint)
+RETURNS TABLE
+AS RETURN ( SELECT
+			CASE @category_id
+				WHEN 0 THEN 'Unknown'
+				WHEN 1 THEN 'CPU'
+				WHEN 2 THEN 'Worker Thread'
+				WHEN 3 THEN 'Lock'
+				WHEN 4 THEN 'Latch'
+				WHEN 5 THEN 'Buffer Latch'
+				WHEN 6 THEN 'Buffer IO'
+				WHEN 7 THEN 'Compilation'
+				WHEN 8 THEN 'SQL CLR'
+				WHEN 9 THEN 'Mirroring'
+				WHEN 10 THEN 'Transaction'
+				WHEN 11 THEN 'Idle'
+				WHEN 12 THEN 'Preemptive'
+				WHEN 13 THEN 'Service Broker'
+				WHEN 14 THEN 'Tran Log IO'
+				WHEN 15 THEN 'Network IO'
+				WHEN 16 THEN 'Parallelism'
+				WHEN 17 THEN 'Memory'
+				WHEN 18 THEN 'User Wait'
+				WHEN 19 THEN 'Tracing'
+				WHEN 20 THEN 'Full Text Search'
+				WHEN 21 THEN 'Other Disk IO'
+				WHEN 22 THEN 'Replication'
+				WHEN 23 THEN 'Log Rate Governor'
+			END AS category
+);
+GO
+
+CREATE PROCEDURE qpi.snapshot_wait_stats @title nvarchar(200) = NULL
+AS BEGIN
+MERGE qpi.dm_os_wait_stats_snapshot AS Target
+USING (
+	SELECT
+	category_id = c.category_id,
 	wait_type = [wait_type] COLLATE Latin1_General_100_BIN2,
 	[waiting_tasks_count],
 	[wait_time_ms],
@@ -336,6 +375,7 @@ USING (
 	[signal_wait_time_ms],
 	info = 'https://www.sqlskills.com/help/waits/' + [wait_type]
 	from sys.dm_os_wait_stats
+		cross apply qpi.__wait_stats_category_id(wait_type) as c
 	-- see: https://www.sqlskills.com/blogs/paul/wait-statistics-or-please-tell-me-where-it-hurts/
 	-- Last updated June 13, 2018
 	where [wait_type] NOT IN (
@@ -461,32 +501,7 @@ create or alter  function qpi.wait_stats_as_of(@date datetime2)
 returns table
 as return (
 select
-	category = CASE category_id
-				WHEN 0 THEN 'Unknown'
-				WHEN 1 THEN 'CPU'
-				WHEN 2 THEN 'Worker Thread'
-				WHEN 3 THEN 'Lock'
-				WHEN 4 THEN 'Latch'
-				WHEN 5 THEN 'Buffer Latch'
-				WHEN 6 THEN 'Buffer IO'
-				WHEN 7 THEN 'Compilation'
-				WHEN 8 THEN 'SQL CLR'
-				WHEN 9 THEN 'Mirroring'
-				WHEN 10 THEN 'Transaction'
-				WHEN 11 THEN 'Idle'
-				WHEN 12 THEN 'Preemptive'
-				WHEN 13 THEN 'Service Broker'
-				WHEN 14 THEN 'Tran Log IO'
-				WHEN 15 THEN 'Network IO'
-				WHEN 16 THEN 'Parallelism'
-				WHEN 17 THEN 'Memory'
-				WHEN 18 THEN 'User Wait'
-				WHEN 19 THEN 'Tracing'
-				WHEN 20 THEN 'Full Text Search'
-				WHEN 21 THEN 'Other Disk IO'
-				WHEN 22 THEN 'Replication'
-				WHEN 23 THEN 'Log Rate Governor'
-			END,
+			category = c.category,
 			wait_type,
 			wait_time_s = wait_time_ms /1000, 
 			avg_wait_time = wait_time_ms / DATEDIFF(ms, start_time, GETUTCDATE()),
@@ -496,12 +511,17 @@ select
 			category_id,
 			snapshot_time = start_time
 from qpi.dm_os_wait_stats_snapshot for system_time all rsi
+	cross apply qpi.__wait_stats_category(category_id) as c
 where @date is null or @date between rsi.start_time and rsi.end_time 
 );
 go
 CREATE OR ALTER
 VIEW qpi.wait_stats
-AS SELECT * FROM  qpi.wait_stats_as_of(GETDATE());
+AS SELECT *
+	FROM sys.dm_os_wait_stats
+		cross apply qpi.__wait_stats_category_id(wait_type) as cid
+			cross apply qpi.__wait_stats_category(cid.category_id) as c
+
 GO
 
 CREATE OR ALTER
@@ -520,7 +540,7 @@ select
 		q.query_id, ws.plan_id, ws.execution_type_desc, 
 		rsi.start_time, rsi.end_time,
 		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
-		ws.runtime_stats_interval_id, ws.wait_stats_id
+		ws.runtime_stats_interval_id, ws.wait_stats_id, q.query_hash
 from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
 	join sys.query_store_plan p on p.query_id = q.query_id
@@ -583,7 +603,7 @@ select	t.query_text_id, q.query_id,
 		start_time = convert(varchar(16), rsi.start_time, 20),
 		end_time = convert(varchar(16), rsi.end_time, 20),
 		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
-		q.context_settings_id
+		q.context_settings_id, q.query_hash
 from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
 	join sys.query_store_plan p on p.query_id = q.query_id
@@ -614,7 +634,7 @@ select	q.query_id,
 		text =  IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text),
 		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ''),
 		t.query_text_id, rsi.start_time, rsi.end_time,
-		rs.*,
+		rs.*, q.query_hash,
 		interval_mi = datediff(mi, rsi.start_time, rsi.end_time)
 from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id

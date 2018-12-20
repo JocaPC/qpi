@@ -79,6 +79,10 @@ DROP VIEW IF EXISTS qpi.query_wait_stats_all
 GO
 DROP FUNCTION IF EXISTS qpi.wait_stats_as_of;
 GO
+DROP FUNCTION IF EXISTS qpi.__wait_stats_category;
+GO
+DROP FUNCTION IF EXISTS qpi.__wait_stats_category_id;
+GO
 DROP VIEW IF EXISTS qpi.query_plan_wait_stats;
 GO
 DROP VIEW IF EXISTS qpi.query_plan_wait_stats_all;

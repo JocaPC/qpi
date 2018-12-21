@@ -146,7 +146,7 @@ CONVERT(NUMERIC(10,2),r.estimated_completion_time/1000.0/60.0/60.0) AS eta_h,
 CONVERT(VARCHAR(1000),(SELECT SUBSTRING(text,r.statement_start_offset/2,
 CASE WHEN r.statement_end_offset = -1 THEN 1000 ELSE (r.statement_end_offset-r.statement_start_offset)/2 END)
 FROM sys.dm_exec_sql_text(sql_handle))) AS query,r.session_id
-FROM sys.dm_exec_requests r WHERE command IN ('RESTORE DATABASE','BACKUP DATABASE') 
+FROM sys.dm_exec_requests r WHERE command IN ('RESTORE DATABASE','BACKUP DATABASE','BACKUP LOG') 
 GO
 
 CREATE OR ALTER VIEW qpi.dm_query_locks
@@ -910,12 +910,12 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 					(((cur.num_of_bytes_read - prev.num_of_bytes_read) + (cur.num_of_bytes_written - prev.num_of_bytes_written)) /
 					((cur.num_of_reads - prev.num_of_reads) + (cur.num_of_writes - prev.num_of_writes)))/1024.0 
 					 AS numeric(10,1)) END,
-		read_disk_stall_ms_per_io = 
+		stall_ms_per_read = 
 			CASE WHEN (cur.num_of_reads - prev.num_of_reads) = 0
 				THEN NULL ELSE 
 			CAST(ROUND(((cur.io_stall_read_ms-cur.io_stall_queued_read_ms) - (prev.io_stall_read_ms - prev.io_stall_queued_read_ms))/(cur.num_of_reads - prev.num_of_reads),2) AS NUMERIC(10,2))
 			END,
-		write_disk_stall_ms_per_io = 
+		stall_ms_per_write = 
 		CASE WHEN (cur.num_of_writes - prev.num_of_writes) = 0
 				THEN NULL
 				ELSE CAST(ROUND(((cur.io_stall_write_ms-cur.io_stall_queued_write_ms) - (prev.io_stall_write_ms - prev.io_stall_queued_write_ms))/(cur.num_of_writes - prev.num_of_writes),2) AS NUMERIC(10,2))

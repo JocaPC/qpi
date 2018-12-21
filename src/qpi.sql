@@ -911,7 +911,7 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 					((cur.num_of_reads - prev.num_of_reads) + (cur.num_of_writes - prev.num_of_writes)))/1024.0 
 					 AS numeric(10,1)) END,
 		read_disk_stall_ms_per_io = 
-			CASE WHEN (cur.num_of_writes - prev.num_of_writes) = 0
+			CASE WHEN (cur.num_of_reads - prev.num_of_reads) = 0
 				THEN NULL ELSE 
 			CAST(ROUND(((cur.io_stall_read_ms-cur.io_stall_queued_read_ms) - (prev.io_stall_read_ms - prev.io_stall_queued_read_ms))/(cur.num_of_reads - prev.num_of_reads),2) AS NUMERIC(10,2))
 			END,

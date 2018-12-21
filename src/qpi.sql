@@ -787,6 +787,8 @@ CREATE TABLE qpi.dm_io_virtual_file_stats_snapshot (
 	[file_id] [smallint] NOT NULL,
 	[io_stall_read_ms] [bigint] NOT NULL,
 	[io_stall_write_ms] [bigint] NOT NULL,
+	[io_stall_queued_read_ms] [bigint] NOT NULL,
+	[io_stall_queued_write_ms] [bigint] NOT NULL,
 	[io_stall] [bigint] NOT NULL,
 	[num_of_bytes_read] [bigint] NOT NULL,
 	[num_of_bytes_written] [bigint] NOT NULL,
@@ -810,7 +812,7 @@ MERGE qpi.dm_io_virtual_file_stats_snapshot AS Target
 USING (
 	SELECT db_name = DB_NAME(vfs.database_id),vfs.database_id,
 		file_name = [mf].[name],size_gb = 8 * mf.size /1024/ 1024,[vfs].[file_id],
-		[io_stall_read_ms],[io_stall_write_ms],[io_stall],
+		[io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
 		[num_of_bytes_read], [num_of_bytes_written],
 		[num_of_reads], [num_of_writes]
 	FROM sys.dm_io_virtual_file_stats (db_id(@db_name),NULL) AS [vfs]
@@ -824,6 +826,8 @@ UPDATE SET
 	Target.[size_gb] = Source.[size_gb], -- Target.[io_stall_read_ms],
 	Target.[io_stall_read_ms] = Source.[io_stall_read_ms], -- Target.[io_stall_read_ms],
 	Target.[io_stall_write_ms] = Source.[io_stall_write_ms], -- Target.[io_stall_write_ms],
+	Target.[io_stall_queued_read_ms] = Source.[io_stall_queued_read_ms], -- Target.[io_stall_read_ms],
+	Target.[io_stall_queued_write_ms] = Source.[io_stall_queued_write_ms], -- Target.[io_stall_write_ms],
 	Target.[io_stall] = Source.[io_stall] ,-- Target.[io_stall],
 	Target.[num_of_bytes_read] = Source.[num_of_bytes_read] ,-- Target.[num_of_bytes_read],
 	Target.[num_of_bytes_written] = Source.[num_of_bytes_written] ,-- Target.[num_of_bytes_written],
@@ -833,28 +837,27 @@ UPDATE SET
 	Target.interval_mi = DATEDIFF(mi, Target.start_time, GETDATE())
 WHEN NOT MATCHED BY TARGET THEN
 INSERT (db_name,database_id,file_name,size_gb,[file_id],
-    [io_stall_read_ms],[io_stall_write_ms],[io_stall],
+    [io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
     [num_of_bytes_read], [num_of_bytes_written],
     [num_of_reads], [num_of_writes], title)
-VALUES (Source.db_name,Source.database_id,Source.file_name,Source.size_gb,Source.[file_id],Source.[io_stall_read_ms],Source.[io_stall_write_ms],Source.[io_stall],Source.[num_of_bytes_read],Source.[num_of_bytes_written],Source.[num_of_reads],Source.[num_of_writes],ISNULL(@title, CAST( GETDATE() as NVARCHAR(50)))); 
+VALUES (Source.db_name,Source.database_id,Source.file_name,Source.size_gb,Source.[file_id],Source.[io_stall_read_ms],Source.[io_stall_write_ms],Source.[io_stall_queued_read_ms],Source.[io_stall_queued_write_ms],Source.[io_stall],Source.[num_of_bytes_read],Source.[num_of_bytes_written],Source.[num_of_reads],Source.[num_of_writes],ISNULL(@title, CAST( GETDATE() as NVARCHAR(50)))); 
 END
-GO
 GO
 CREATE OR ALTER FUNCTION qpi.fn_file_stats(@database_id int, @end_date datetime2 = null, @milestone nvarchar(100) = null)
 RETURNS TABLE
 AS RETURN ( 
 	-- for testing: DECLARE @database_id int = DB_ID(), @end_date datetime2 = null, @milestone nvarchar(100) = null;
-with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall],
+with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
 				[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes], title, start_time, end_time)
 	as (
-			SELECT	s.database_id, [file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall],
+			SELECT	s.database_id, [file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
 					[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
 					title, start_time, end_time
 			FROM qpi.dm_io_virtual_file_stats_snapshot for system_time as of @end_date s
 			WHERE @end_date is not null
 			AND (@database_id is null or s.database_id = @database_id)
 			UNION ALL
-			SELECT	database_id,[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall],
+			SELECT	database_id,[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
 					[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
 					title, start_time, end_time
 			FROM qpi.dm_io_virtual_file_stats_snapshot for system_time all as s
@@ -862,7 +865,7 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 			AND title = @milestone
 			AND (@database_id is null or s.database_id = @database_id)
 			UNION ALL
-			SELECT	s.database_id,s.[file_id],[size_gb]=8*mf.size/1024/1024,[io_stall_read_ms],[io_stall_write_ms],[io_stall],
+			SELECT	s.database_id,s.[file_id],[size_gb]=8*mf.size/1024/1024,[io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
 						[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
 						title = 'Latest', start_time = GETDATE(), end_time = CAST('9999-12-31T00:00:00.0000' AS DATETIME2)
 				FROM sys.dm_io_virtual_file_stats (@database_id, null) s
@@ -907,12 +910,22 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 					(((cur.num_of_bytes_read - prev.num_of_bytes_read) + (cur.num_of_bytes_written - prev.num_of_bytes_written)) /
 					((cur.num_of_reads - prev.num_of_reads) + (cur.num_of_writes - prev.num_of_writes)))/1024.0 
 					 AS numeric(10,1)) END,
-		io_stall_read_ms = cur.io_stall_read_ms - prev.io_stall_read_ms,
-		io_stall_write_ms = cur.io_stall_write_ms - prev.io_stall_write_ms,
+		read_disk_stall_ms_per_io = 
+			CASE WHEN (cur.num_of_writes - prev.num_of_writes) = 0
+				THEN NULL ELSE 
+			CAST(ROUND(((cur.io_stall_read_ms-cur.io_stall_queued_read_ms) - (prev.io_stall_read_ms - prev.io_stall_queued_read_ms))/(cur.num_of_reads - prev.num_of_reads),2) AS NUMERIC(10,2))
+			END,
+		write_disk_stall_ms_per_io = 
+		CASE WHEN (cur.num_of_writes - prev.num_of_writes) = 0
+				THEN NULL
+				ELSE CAST(ROUND(((cur.io_stall_write_ms-cur.io_stall_queued_write_ms) - (prev.io_stall_write_ms - prev.io_stall_queued_write_ms))/(cur.num_of_writes - prev.num_of_writes),2) AS NUMERIC(10,2))
+			END,
 		read_mb = CAST((cur.num_of_bytes_read - prev.num_of_bytes_read)/1024.0/1024 AS numeric(10,2)),
 		write_mb = CAST((cur.num_of_bytes_written - prev.num_of_bytes_written)/1024.0/1024 AS numeric(10,2)),
 		num_of_reads = cur.num_of_reads - prev.num_of_reads,
 		num_of_writes = cur.num_of_writes - prev.num_of_writes,
+		io_stall_read_ms = cur.io_stall_read_ms - prev.io_stall_read_ms,
+		io_stall_write_ms = cur.io_stall_write_ms - prev.io_stall_write_ms,
 		interval_mi = DATEDIFF(minute, prev.start_time, cur.start_time)
 	FROM cur
 		JOIN qpi.dm_io_virtual_file_stats_snapshot for system_time all as prev 

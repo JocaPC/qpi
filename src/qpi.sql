@@ -898,6 +898,16 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 		write_latency_ms
 			= CASE WHEN (cur.num_of_writes - prev.num_of_writes) = 0
 				THEN NULL ELSE (CAST(ROUND(1.0 * (cur.io_stall_write_ms - prev.io_stall_write_ms) / (cur.num_of_writes - prev.num_of_writes), 1) AS numeric(5,1))) END,
+		read_stall_ms = 
+			CASE WHEN (cur.num_of_reads - prev.num_of_reads) = 0
+				THEN NULL ELSE 
+			CAST(ROUND(((cur.io_stall_read_ms-cur.io_stall_queued_read_ms) - (prev.io_stall_read_ms - prev.io_stall_queued_read_ms))/(cur.num_of_reads - prev.num_of_reads),2) AS NUMERIC(10,2))
+			END,
+		write_stall_ms = 
+		CASE WHEN (cur.num_of_writes - prev.num_of_writes) = 0
+				THEN NULL
+				ELSE CAST(ROUND(((cur.io_stall_write_ms-cur.io_stall_queued_write_ms) - (prev.io_stall_write_ms - prev.io_stall_queued_write_ms))/(cur.num_of_writes - prev.num_of_writes),2) AS NUMERIC(10,2))
+			END,
 		kb_per_read
 			= CASE WHEN (cur.num_of_reads - prev.num_of_reads) = 0
 				THEN NULL ELSE CAST(((cur.num_of_bytes_read - prev.num_of_bytes_read) / (cur.num_of_reads - prev.num_of_reads))/1024.0 AS numeric(10,1)) END,
@@ -910,22 +920,10 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 					(((cur.num_of_bytes_read - prev.num_of_bytes_read) + (cur.num_of_bytes_written - prev.num_of_bytes_written)) /
 					((cur.num_of_reads - prev.num_of_reads) + (cur.num_of_writes - prev.num_of_writes)))/1024.0 
 					 AS numeric(10,1)) END,
-		stall_ms_per_read = 
-			CASE WHEN (cur.num_of_reads - prev.num_of_reads) = 0
-				THEN NULL ELSE 
-			CAST(ROUND(((cur.io_stall_read_ms-cur.io_stall_queued_read_ms) - (prev.io_stall_read_ms - prev.io_stall_queued_read_ms))/(cur.num_of_reads - prev.num_of_reads),2) AS NUMERIC(10,2))
-			END,
-		stall_ms_per_write = 
-		CASE WHEN (cur.num_of_writes - prev.num_of_writes) = 0
-				THEN NULL
-				ELSE CAST(ROUND(((cur.io_stall_write_ms-cur.io_stall_queued_write_ms) - (prev.io_stall_write_ms - prev.io_stall_queued_write_ms))/(cur.num_of_writes - prev.num_of_writes),2) AS NUMERIC(10,2))
-			END,
 		read_mb = CAST((cur.num_of_bytes_read - prev.num_of_bytes_read)/1024.0/1024 AS numeric(10,2)),
 		write_mb = CAST((cur.num_of_bytes_written - prev.num_of_bytes_written)/1024.0/1024 AS numeric(10,2)),
 		num_of_reads = cur.num_of_reads - prev.num_of_reads,
 		num_of_writes = cur.num_of_writes - prev.num_of_writes,
-		io_stall_read_ms = cur.io_stall_read_ms - prev.io_stall_read_ms,
-		io_stall_write_ms = cur.io_stall_write_ms - prev.io_stall_write_ms,
 		interval_mi = DATEDIFF(minute, prev.start_time, cur.start_time)
 	FROM cur
 		JOIN qpi.dm_io_virtual_file_stats_snapshot for system_time all as prev 

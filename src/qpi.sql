@@ -1197,6 +1197,7 @@ select	name = counter_name, value = cntr_value, object = object_name, instance_n
 		left join sys.databases d
 			on pc.instance_name = d.physical_database_name
 where cntr_type in (65792, 1073939712) --  PERF_COUNTER_LARGE_RAWCOUNT, PERF_LARGE_RAW_BASE
+and pc.cntr_value > 0
 union all
 select	name = pc.counter_name, 
 		value = 100*pc.cntr_value/base.cntr_value, object = pc.object_name, 
@@ -1210,6 +1211,7 @@ from sys.dm_os_performance_counters pc
 		left join sys.databases d
 			on pc.instance_name = d.physical_database_name
 where pc.cntr_type = 537003264 -- PERF_LARGE_RAW_FRACTION
+and pc.cntr_value > 0
 union all
 select	name = pc.counter_name, 
 		value = (pc.cntr_value-prev.value)/(DATEDIFF(millisecond, prev.start_time, GETUTCDATE()) / 1000.),
@@ -1224,7 +1226,10 @@ from sys.dm_os_performance_counters pc
 	join qpi.dm_os_performance_counters prev
 		on pc.counter_name COLLATE Latin1_General_100_CI_AS = prev.name
 		and pc.object_name COLLATE Latin1_General_100_CI_AS = prev.object
+		and pc.instance_name COLLATE Latin1_General_100_CI_AS = prev.instance_name
+		and pc.cntr_type = prev.type
 where pc.cntr_type = 272696576 -- PERF_COUNTER_BULK_COUNT
+and (pc.cntr_value-prev.value) > 0
 GO
 
 CREATE OR ALTER PROCEDURE qpi.snapshot_perf_counters

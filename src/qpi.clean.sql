@@ -113,6 +113,23 @@ GO
 DROP TABLE IF EXISTS qpi.dm_os_wait_stats_snapshot_history;
 GO
 
+---------------------------------------------------------------------------------------------------
+--				Performance counters
+---------------------------------------------------------------------------------------------------
+DROP VIEW IF EXISTS qpi.perf_counters;
+GO
+DROP PROCEDURE IF EXISTS qpi.snapshot_perf_counters;
+GO
+BEGIN TRY
+	EXEC('ALTER TABLE qpi.dm_os_performance_counters 
+			SET (SYSTEM_VERSIONING = OFF)');
+END TRY BEGIN CATCH END CATCH;
+GO
+DROP TABLE IF EXISTS qpi.dm_os_performance_counters_history;
+GO
+DROP TABLE IF EXISTS qpi.dm_os_performance_counters;
+GO
+
 --------------------------------------------------------------------------------
 --	Resource info
 --------------------------------------------------------------------------------

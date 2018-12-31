@@ -1168,3 +1168,85 @@ qpi.db_nodes
 AS
 SELECT * FROM qpi.nodes WHERE database_id = DB_ID();
 GO
+
+---------------------------------------------------------------------------------------------------
+--				Performance counters
+---------------------------------------------------------------------------------------------------
+
+CREATE TABLE qpi.dm_os_performance_counters (
+	[name] nvarchar(128) COLLATE Latin1_General_100_CI_AS NOT NULL,
+	[value] decimal NOT NULL,
+	[object] nvarchar(128) COLLATE Latin1_General_100_CI_AS NOT NULL,
+	[instance_name] nvarchar(128) COLLATE Latin1_General_100_CI_AS NOT NULL,
+	[type] int NOT NULL,
+	start_time datetime2 GENERATED ALWAYS AS ROW START,
+	end_time datetime2 GENERATED ALWAYS AS ROW END,
+	PERIOD FOR SYSTEM_TIME (start_time, end_time),
+	PRIMARY KEY (type,name,object,instance_name)
+ ) WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.dm_os_performance_counters_history));
+GO
+
+CREATE OR ALTER VIEW
+qpi.perf_counters
+AS
+select	name = counter_name, value = cntr_value, object = object_name, instance_name = CASE 
+			WHEN SERVERPROPERTY('EngineEdition') = 8 THEN ISNULL(d.name, pc.instance_name)
+			ELSE pc.instance_name
+		END,
+		type = cntr_type from sys.dm_os_performance_counters pc
+		left join sys.databases d
+			on pc.instance_name = d.physical_database_name
+where cntr_type in (65792, 1073939712) --  PERF_COUNTER_LARGE_RAWCOUNT, PERF_LARGE_RAW_BASE
+union all
+select	name = pc.counter_name, 
+		value = 100*pc.cntr_value/base.cntr_value, object = pc.object_name, 
+		instance_name = CASE 
+			WHEN SERVERPROPERTY('EngineEdition') = 8 THEN ISNULL(d.name, pc.instance_name)
+			ELSE pc.instance_name
+		END, type = pc.cntr_type
+from sys.dm_os_performance_counters pc
+	join sys.dm_os_performance_counters base
+		on pc.counter_name + ' base'  = base.counter_name
+		left join sys.databases d
+			on pc.instance_name = d.physical_database_name
+where pc.cntr_type = 537003264 -- PERF_LARGE_RAW_FRACTION
+union all
+select	name = pc.counter_name, 
+		value = (pc.cntr_value-prev.value)/(DATEDIFF(millisecond, prev.start_time, GETUTCDATE()) / 1000.),
+		object = pc.object_name,
+		instance_name = CASE 
+			WHEN SERVERPROPERTY('EngineEdition') = 8 THEN ISNULL(d.name, pc.instance_name)
+			ELSE pc.instance_name
+		END, type = pc.cntr_type
+from sys.dm_os_performance_counters pc
+	left join sys.databases d
+			on pc.instance_name = d.physical_database_name
+	join qpi.dm_os_performance_counters prev
+		on pc.counter_name COLLATE Latin1_General_100_CI_AS = prev.name
+		and pc.object_name COLLATE Latin1_General_100_CI_AS = prev.object
+where pc.cntr_type = 272696576 -- PERF_COUNTER_BULK_COUNT
+GO
+
+CREATE OR ALTER PROCEDURE qpi.snapshot_perf_counters
+AS BEGIN
+MERGE qpi.dm_os_performance_counters AS Target
+USING (
+	SELECT object = object_name, name = counter_name, value = cntr_value, type = cntr_type,
+	instance_name
+	FROM sys.dm_os_performance_counters
+	-- Do not use the trick with joining instance name with sys.databases.physical_name
+	-- because there are duplicate key insert error on system database
+	) AS Source
+ON (Target.object = Source.object COLLATE Latin1_General_100_CI_AS 
+	AND Target.name = Source.name COLLATE Latin1_General_100_CI_AS
+	AND Target.instance_name = Source.instance_name COLLATE Latin1_General_100_CI_AS
+	AND Target.type = Source.type)
+WHEN MATCHED THEN
+UPDATE SET
+	Target.value = Source.value
+WHEN NOT MATCHED BY TARGET THEN
+INSERT (name, value, object, instance_name, type)
+VALUES (Source.name,Source.value,Source.object,instance_name,Source.type)
+; 
+END
+GO

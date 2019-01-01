@@ -1173,7 +1173,7 @@ GO
 --				Performance counters
 ---------------------------------------------------------------------------------------------------
 
-CREATE TABLE qpi.dm_os_performance_counters (
+CREATE TABLE qpi.dm_os_performance_counters_snapshot (
 	[name] nvarchar(128) COLLATE Latin1_General_100_CI_AS NOT NULL,
 	[value] decimal NOT NULL,
 	[object] nvarchar(128) COLLATE Latin1_General_100_CI_AS NOT NULL,
@@ -1183,7 +1183,7 @@ CREATE TABLE qpi.dm_os_performance_counters (
 	end_time datetime2 GENERATED ALWAYS AS ROW END,
 	PERIOD FOR SYSTEM_TIME (start_time, end_time),
 	PRIMARY KEY (type,name,object,instance_name)
- ) WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.dm_os_performance_counters_history));
+ ) WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.dm_os_performance_counters_snapshot_history));
 GO
 
 CREATE OR ALTER VIEW
@@ -1223,7 +1223,7 @@ select	name = pc.counter_name,
 from sys.dm_os_performance_counters pc
 	left join sys.databases d
 			on pc.instance_name = d.physical_database_name
-	join qpi.dm_os_performance_counters prev
+	join qpi.dm_os_performance_counters_snapshot prev
 		on pc.counter_name COLLATE Latin1_General_100_CI_AS = prev.name
 		and pc.object_name COLLATE Latin1_General_100_CI_AS = prev.object
 		and pc.instance_name COLLATE Latin1_General_100_CI_AS = prev.instance_name
@@ -1234,7 +1234,7 @@ GO
 
 CREATE OR ALTER PROCEDURE qpi.snapshot_perf_counters
 AS BEGIN
-MERGE qpi.dm_os_performance_counters AS Target
+MERGE qpi.dm_os_performance_counters_snapshot AS Target
 USING (
 	SELECT object = object_name, name = counter_name, value = cntr_value, type = cntr_type,
 	instance_name

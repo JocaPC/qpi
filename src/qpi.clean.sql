@@ -121,13 +121,13 @@ GO
 DROP PROCEDURE IF EXISTS qpi.snapshot_perf_counters;
 GO
 BEGIN TRY
-	EXEC('ALTER TABLE qpi.dm_os_performance_counters 
+	EXEC('ALTER TABLE qpi.dm_os_performance_counters_snapshot 
 			SET (SYSTEM_VERSIONING = OFF)');
 END TRY BEGIN CATCH END CATCH;
 GO
-DROP TABLE IF EXISTS qpi.dm_os_performance_counters_history;
+DROP TABLE IF EXISTS qpi.dm_os_performance_counters_snapshot_history;
 GO
-DROP TABLE IF EXISTS qpi.dm_os_performance_counters;
+DROP TABLE IF EXISTS qpi.dm_os_performance_counters_snapshot;
 GO
 
 --------------------------------------------------------------------------------

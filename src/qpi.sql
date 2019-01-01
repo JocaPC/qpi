@@ -1199,20 +1199,28 @@ select	name = counter_name, value = cntr_value, object = object_name, instance_n
 where cntr_type in (65792, 1073939712) --  PERF_COUNTER_LARGE_RAWCOUNT, PERF_LARGE_RAW_BASE
 and pc.cntr_value > 0
 union all
+-- PERF_LARGE_RAW_FRACTION
 select	name = pc.counter_name, 
-		value = 100*pc.cntr_value/base.cntr_value, object = pc.object_name, 
+		value = 
+			CASE 
+				WHEN base.cntr_value = 0 THEN NULL
+				ELSE 100*pc.cntr_value/base.cntr_value
+			END, object = pc.object_name, 
 		instance_name = CASE 
 			WHEN SERVERPROPERTY('EngineEdition') = 8 THEN ISNULL(d.name, pc.instance_name)
 			ELSE pc.instance_name
 		END, type = pc.cntr_type
 from sys.dm_os_performance_counters pc
 	join sys.dm_os_performance_counters base
-		on pc.counter_name + ' base'  = base.counter_name
+		on rtrim(pc.counter_name) + ' base'  = base.counter_name
+		and pc.instance_name = base.instance_name
+		and pc.object_name = base.object_name
 		left join sys.databases d
 			on pc.instance_name = d.physical_database_name
 where pc.cntr_type = 537003264 -- PERF_LARGE_RAW_FRACTION
-and pc.cntr_value > 0
+and base.cntr_type = 1073939712 -- PERF_LARGE_RAW_BASE
 union all
+-- PERF_COUNTER_BULK_COUNT
 select	name = pc.counter_name, 
 		value = (pc.cntr_value-prev.value)/(DATEDIFF(millisecond, prev.start_time, GETUTCDATE()) / 1000.),
 		object = pc.object_name,
@@ -1244,7 +1252,9 @@ select	name = A1.counter_name,
 		END, type = A1.cntr_type
 from sys.dm_os_performance_counters A1
 	join sys.dm_os_performance_counters B1
-		on A1.counter_name + ' base'  = B1.counter_name
+		on rtrim(A1.counter_name) + ' base'  = B1.counter_name
+		and A1.instance_name = B1.instance_name
+		and A1.object_name = B1.object_name
 		left join sys.databases d
 			on A1.instance_name = d.physical_database_name
 	join qpi.dm_os_performance_counters_snapshot A2
@@ -1253,11 +1263,13 @@ from sys.dm_os_performance_counters A1
 		and A1.instance_name COLLATE Latin1_General_100_CI_AS = A2.instance_name
 		and A1.cntr_type = A2.type
 	join qpi.dm_os_performance_counters_snapshot B2
-		on A2.name + ' base'  = B2.name	 
+		on rtrim(A2.name) + ' base'  = B2.name	 
+		and A2.instance_name = B2.instance_name
+		and A2.name = B2.name
 where A1.cntr_type = 1073874176 -- PERF_AVERAGE_BULK
---and B1.cntr_type = 1073939712 -- PERF_LARGE_RAW_BASE
+and B1.cntr_type = 1073939712 -- PERF_LARGE_RAW_BASE
 and A2.type = 1073874176 -- PERF_AVERAGE_BULK
---and B2.type = 1073939712 -- PERF_LARGE_RAW_BASE
+and B2.type = 1073939712 -- PERF_LARGE_RAW_BASE
 GO
 
 CREATE OR ALTER PROCEDURE qpi.snapshot_perf_counters

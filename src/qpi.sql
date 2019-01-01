@@ -1183,7 +1183,7 @@ CREATE TABLE qpi.dm_os_performance_counters_snapshot (
 	end_time datetime2 GENERATED ALWAYS AS ROW END,
 	PERIOD FOR SYSTEM_TIME (start_time, end_time),
 	PRIMARY KEY (type,name,object,instance_name)
- ) WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.dm_os_performance_counters_snapshot_history));
+ ) --WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.dm_os_performance_counters_snapshot_history));
 GO
 
 CREATE OR ALTER VIEW
@@ -1230,6 +1230,34 @@ from sys.dm_os_performance_counters pc
 		and pc.cntr_type = prev.type
 where pc.cntr_type = 272696576 -- PERF_COUNTER_BULK_COUNT
 and (pc.cntr_value-prev.value) > 0
+union ALL
+-- PERF_AVERAGE_BULK
+select	name = A1.counter_name, 
+		value =  CASE
+		WHEN (B2.value = B1.cntr_value) THEN NULL
+		ELSE (A2.value - A1.cntr_value) / (B2.value - B1.cntr_value)
+		END, 
+		object = A1.object_name, 
+		instance_name = CASE 
+			WHEN SERVERPROPERTY('EngineEdition') = 8 THEN ISNULL(d.name, A1.instance_name)
+			ELSE A1.instance_name
+		END, type = A1.cntr_type
+from sys.dm_os_performance_counters A1
+	join sys.dm_os_performance_counters B1
+		on A1.counter_name + ' base'  = B1.counter_name
+		left join sys.databases d
+			on A1.instance_name = d.physical_database_name
+	join qpi.dm_os_performance_counters_snapshot A2
+		on A1.counter_name COLLATE Latin1_General_100_CI_AS = A2.name
+		and A1.object_name COLLATE Latin1_General_100_CI_AS = A2.object
+		and A1.instance_name COLLATE Latin1_General_100_CI_AS = A2.instance_name
+		and A1.cntr_type = A2.type
+	join qpi.dm_os_performance_counters_snapshot B2
+		on A2.name + ' base'  = B2.name	 
+where A1.cntr_type = 1073874176 -- PERF_AVERAGE_BULK
+--and B1.cntr_type = 1073939712 -- PERF_LARGE_RAW_BASE
+and A2.type = 1073874176 -- PERF_AVERAGE_BULK
+--and B2.type = 1073939712 -- PERF_LARGE_RAW_BASE
 GO
 
 CREATE OR ALTER PROCEDURE qpi.snapshot_perf_counters

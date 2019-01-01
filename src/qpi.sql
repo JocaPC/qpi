@@ -1186,6 +1186,7 @@ CREATE TABLE qpi.dm_os_performance_counters_snapshot (
  ) --WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.dm_os_performance_counters_snapshot_history));
 GO
 
+-- See for math: https://blogs.msdn.microsoft.com/psssql/2013/09/23/interpreting-the-counter-values-from-sys-dm_os_performance_counters/
 CREATE OR ALTER VIEW
 qpi.perf_counters
 AS

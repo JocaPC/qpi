@@ -19,23 +19,34 @@ This is the reason why I have collected the most useful queries that find inform
 
 Getting information abouth your workload:
 ```
-select * from qpi.queries;
+select * from qpi.queries; -- All recorded queries in Query Store
 
-select * from qpi.dm_queries;
-select * from qpi.dm_bre;
+select * from qpi.dm_queries;           -- Currently running queries
+select * from qpi.dm_bre;               -- Active Backup/Restore request
+select * from qpi.dm_blocked_queries;   -- Information about the currently blocked queries;
+select * from qpi.dm_query_locks;       -- Information about the locks that the queries are holding;
+
+select * from qpi.dm_cpu_usage; --  Information about CPU usage.
+select * from qpi.dm_mem_usage; --  Information about memory usage.
+
 ```
 
 Getting the information about the system performance:
 ```
-exec qpi.snapshot_file_stats;
-select * from qpi.file_stats;
+select * from qpi.sys_info; --  Get CPU & memory
+select * from qpi.volumes;  --  Get info about used and available space on volumes
 
-exec qpi.snapshot_wait_stats;
-select * from qpi.wait_stats;
+exec qpi.snapshot_file_stats;   --  Get the file statistics baseline
+select * from qpi.file_stats;   --  Get the file stats
 
-exec qpi.snapshot_perf_counters;
-select * from qpi.perf_counters;
+exec qpi.snapshot_wait_stats;   --  Get the wait statistics baseline
+select * from qpi.wait_stats;   --  Get the wait stats
+
+exec qpi.snapshot_perf_counters;    -- Get the performance counter baseline (required for some perf counters)
+select * from qpi.perf_counters;    -- Get the perf counters
 ```
+
+See more detaile about the available views and functions in the [QPI API page](Api.md).
 
 ## Performance analysis
 

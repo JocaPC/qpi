@@ -47,7 +47,7 @@ exec qpi.snapshot_perf_counters;    -- Take the performance counter baseline (re
 select * from qpi.perf_counters;    -- Get the perf counters
 ```
 
-See more details about the available views and functions in the [QPI API page](Api.md). Find more information how to get the informaiton about the system in [system information page](doc/SystemInfo.md).
+See more details about the available views and functions in the [QPI API page](doc/Api.md). Find more information how to get the informaiton about the system in [system information page](doc/SystemInfo.md).
 
 ## Performance analysis
 

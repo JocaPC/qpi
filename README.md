@@ -1,10 +1,10 @@
 # Query Performance Insights
 
-Query Performance Insights (QPI) is a collection of useful scripts that enable you find what is happening with your SQL Server. It is a set of views and functions that wrap Query Store and Dynamic Management Views.
+Query Performance Insights (QPI) is a collection of useful scripts that enable you find what is happening with your Azure SQL Database (most of the scripts would work on SQL Server 2016+). It is a set of views and functions that wrap Query Store and Dynamic Management Views.
 
 ## Why I need this kind of library?
 
-SQL Server/Azure SQL Database provide a lot of views that we can use to analyze query performance (dynamic management views and Query Store views). However, sometime it is hard to see what is happening in the database engine. There are DMVs and Query Store, but when we need to get the answer to the simple questions such as "Did query performance changed after I added an index?" or "How many IOPS do we use?", we need to dig into Query Store schema, think about every single report, or search for some useful query.
+SQL Server/Azure SQL Database provide a lot of views that we can use to analyze query performance (dynamic management views and Query Store views). However, sometime it is hard to see what is happening in the database engine. There are DMVs and Query Store, but when we need to get the answer to the simple questions such as "Did query performance changed after I added an index?" or "How many IOPS do we use?", we need to dig into Query Store schema, think about every single report, or search for some useful query. Also, for most of the views, you woudl need to read several articles to understand how to interpret the results.
 
 This is the reason why I have collected the most useful queries that find information from underlying system views, and wrapped them in a set of useful views. Some usefull resources that I have used:
 
@@ -17,36 +17,37 @@ This is the reason why I have collected the most useful queries that find inform
 
 ## Examples
 
+Let's start with some common examples of the queries that I use.
+
 Getting information abouth your workload:
 ```
 select * from qpi.queries; -- All recorded queries in Query Store
 
 select * from qpi.dm_queries;           -- Currently running queries
-select * from qpi.dm_bre;               -- Active Backup/Restore request
-select * from qpi.dm_blocked_queries;   -- Information about the currently blocked queries;
-select * from qpi.dm_query_locks;       -- Information about the locks that the queries are holding;
+select * from qpi.dm_bre;               -- Active Backup/Restore requests
+select * from qpi.dm_blocked_queries;   -- Information about the currently blocked queries
+select * from qpi.dm_query_locks;       -- Information about the locks that the queries are holding
 
 select * from qpi.dm_cpu_usage; --  Information about CPU usage.
 select * from qpi.dm_mem_usage; --  Information about memory usage.
-
 ```
 
 Getting the information about the system performance:
 ```
 select * from qpi.sys_info; --  Get CPU & memory
-select * from qpi.volumes;  --  Get info about used and available space on volumes
+select * from qpi.volumes;  --  Get info about used and available space on the storage volumes
 
-exec qpi.snapshot_file_stats;   --  Get the file statistics baseline
+exec qpi.snapshot_file_stats;   --  Take the file statistics baseline
 select * from qpi.file_stats;   --  Get the file stats
 
-exec qpi.snapshot_wait_stats;   --  Get the wait statistics baseline
+exec qpi.snapshot_wait_stats;   --  Take the wait statistics baseline
 select * from qpi.wait_stats;   --  Get the wait stats
 
-exec qpi.snapshot_perf_counters;    -- Get the performance counter baseline (required for some perf counters)
+exec qpi.snapshot_perf_counters;    -- Take the performance counter baseline (required for some perf counters)
 select * from qpi.perf_counters;    -- Get the perf counters
 ```
 
-See more detaile about the available views and functions in the [QPI API page](Api.md). Find more information how to get the informaiton about the system in [system information page](doc/SystemInfo.md).
+See more details about the available views and functions in the [QPI API page](Api.md). Find more information how to get the informaiton about the system in [system information page](doc/SystemInfo.md).
 
 ## Performance analysis
 

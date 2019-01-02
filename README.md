@@ -46,11 +46,15 @@ exec qpi.snapshot_perf_counters;    -- Get the performance counter baseline (req
 select * from qpi.perf_counters;    -- Get the perf counters
 ```
 
-See more detaile about the available views and functions in the [QPI API page](Api.md).
+See more detaile about the available views and functions in the [QPI API page](Api.md). Find more information how to get the informaiton about the system in [system information page](doc/SystemInfo.md).
 
 ## Performance analysis
 
-QPI library simplifies query performance analysis. Some useful scripts and scenarios are shown in [query performance analysis page](doc/QueryPerformanceAnalisys.md).
+QPI library simplifies query performance analysis. Some useful scripts and scenarios are shown in [query performance analysis page](doc/QueryPerformanceAnalisys.md) and [query performance page](doc/QueryStatistics.md).
+
+## File performance
+
+QPI library enables you to find performance of underlying file system - find more information in [file statistics page](doc/FileStatistics.md).
 
 ## Installation
 QPI library is just a set of views, functions, and utility tables that you can install on your SQL Server or Azure SQL instance. Currently, it supports SQL Server 2016+ and Azure SQL Database.

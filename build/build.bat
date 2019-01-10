@@ -11,4 +11,3 @@ git commit -a -m "$m"
 git checkout sql2016
 .\mcpp.exe -k -P -o ..\src\qpi.sql -D SQL2016 qpi.tmpl.sql
 git commit -a -m "$m"
-

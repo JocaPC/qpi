@@ -1,5 +1,5 @@
-
-
+#define QUERYTEXT(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text)
+#define QUERYPARAM(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), "")
 --------------------------------------------------------------------------------
 --	SQL Server & Azure SQL Managed Instance - Query Performance Insights
 --	Author: Jovan Popovic
@@ -20,10 +20,10 @@ GO
 ---
 CREATE OR ALTER FUNCTION qpi.ago(@days tinyint, @hours tinyint, @min tinyint)
 RETURNS datetime2
-AS BEGIN RETURN DATEADD(day, - @days,
+AS BEGIN RETURN DATEADD(day, - @days, 
 					DATEADD(hour, - @hours,
 						DATEADD(minute, - @min, GETDATE())
-						)
+						)						
 					) END;
 GO
 ---
@@ -31,10 +31,10 @@ GO
 ---
 CREATE OR ALTER FUNCTION qpi.dhm(@time int)
 RETURNS datetime2
-AS BEGIN RETURN DATEADD(DAY, - ((@time /10000) %100),
+AS BEGIN RETURN DATEADD(DAY, - ((@time /10000) %100), 
 					DATEADD(HOUR, - (@time /100) %100,
 						DATEADD(MINUTE, - (@time %100), GETDATE())
-						)
+						)						
 					) END;
 GO
 CREATE OR ALTER FUNCTION qpi.decode_options(@options int)
@@ -42,13 +42,13 @@ RETURNS TABLE
 RETURN (
 SELECT 'DISABLE_DEF_CNST_CHK' = IIF( (1 & @options) = 1, 'ON', 'OFF' )
 	, 'IMPLICIT_TRANSACTIONS' = IIF( (2 & @options) = 2, 'ON', 'OFF' )
-	, 'CURSOR_CLOSE_ON_COMMIT' = IIF( (4 & @options) = 4, 'ON', 'OFF' )
+	, 'CURSOR_CLOSE_ON_COMMIT' = IIF( (4 & @options) = 4, 'ON', 'OFF' ) 
 	, 'ANSI_WARNINGS' = IIF( (8 & @options) = 8 , 'ON', 'OFF' )
 	, 'ANSI_PADDING' = IIF( (16 & @options) = 16 , 'ON', 'OFF' )
 	, 'ANSI_NULLS' = IIF( (32 & @options) = 32 , 'ON', 'OFF' )
 	, 'ARITHABORT' = IIF( (64 & @options) = 64 , 'ON', 'OFF' )
 	, 'ARITHIGNORE' = IIF( (128 & @options) = 128 , 'ON', 'OFF' )
-	, 'QUOTED_IDENTIFIER' = IIF( (256 & @options) = 256 , 'ON', 'OFF' )
+	, 'QUOTED_IDENTIFIER' = IIF( (256 & @options) = 256 , 'ON', 'OFF' ) 
 	, 'NOCOUNT' = IIF( (512 & @options) = 512 , 'ON', 'OFF' )
 	, 'ANSI_NULL_DFLT_ON' = IIF( (1024 & @options) = 1024 , 'ON', 'OFF' )
 	, 'ANSI_NULL_DFLT_OFF' = IIF( (2048 & @options) = 2048 , 'ON', 'OFF' )
@@ -62,7 +62,7 @@ CREATE OR ALTER FUNCTION qpi.compare_context_settings (@ctx_id1 int, @ctx_id2 in
 returns table
 return (
 	select a.[key], a.value value1, b.value value2
-	from
+	from 
 	(select [key], value
 	from openjson(
 	(select *
@@ -71,7 +71,7 @@ return (
 		where context_settings_id = @ctx_id1
 		for json path, without_array_wrapper)
 	)) as a ([key], value)
-	join
+	join 
 	(select [key], value
 	from openjson(
 	(select *
@@ -87,9 +87,9 @@ return (
 GO
 CREATE OR ALTER VIEW qpi.queries
 as
-select	text =  IIF(LEFT(query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text) ,
-		params =  IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), "") ,
-		q.query_text_id, query_id, context_settings_id, q.query_hash
+select	text = QUERYTEXT(query_sql_text),
+		params = QUERYPARAM(query_sql_text),
+		q.query_text_id, query_id, context_settings_id, q.query_hash		
 from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
 GO
@@ -97,7 +97,7 @@ GO
 CREATE OR ALTER VIEW qpi.queries_ex
 as
 select	q.text, q.params, q.query_text_id, query_id, q.context_settings_id, q.query_hash,
-		o.*
+		o.*		
 FROM qpi.queries q
 		JOIN sys.query_context_settings ctx
 			ON q.context_settings_id = ctx.context_settings_id
@@ -107,8 +107,11 @@ GO
 CREATE OR ALTER VIEW qpi.query_texts
 as
 select	q.text, q.params, q.query_text_id,
-
+#ifndef SQL2016
 		 queries = string_agg(concat(query_id,'(', context_settings_id,')'),',')
+#else
+		 queries = count(query_id)
+#endif
 from qpi.queries q
 group by q.text, q.params, q.query_text_id
 GO
@@ -116,21 +119,21 @@ GO
 -- The list of currently executing queries that are probably not in Query Store.
 CREATE OR ALTER VIEW qpi.dm_queries
 AS
-SELECT
-		text =   IIF(LEFT(text,1) = '(', TRIM(')' FROM SUBSTRING( text, (PATINDEX( '%)[^,]%', text))+1, LEN(text))), text) ,
-		params =  IIF(LEFT(text,1) = '(', SUBSTRING( text, 0, (PATINDEX( '%)[^,]%', text))+1), "") ,
+SELECT  
+		text =  QUERYTEXT(text),
+		params = QUERYPARAM(text),
 		execution_type_desc = status COLLATE Latin1_General_CS_AS,
 		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
-		elapsed_time_s = total_elapsed_time /1000.0,
-		cpu_time_s = cpu_time /1000.0,
+		elapsed_time_s = total_elapsed_time /1000.0, 
+		cpu_time_s = cpu_time /1000.0, 		 
 		logical_io_reads = logical_reads,
 		logical_io_writes = writes,
-		physical_io_reads = reads,
-		num_physical_io_reads = NULL,
+		physical_io_reads = reads, 
+		num_physical_io_reads = NULL, 
 		clr_time = NULL,
 		dop,
-		row_count,
-		memory_mb = granted_query_memory *8 /1000,
+		row_count, 
+		memory_mb = granted_query_memory *8 /1000, 
 		log_bytes = NULL,
 		tempdb_space = NULL,
 		query_text_id = NULL, query_id = NULL, plan_id = NULL,
@@ -152,12 +155,12 @@ CONVERT(NUMERIC(10,2),r.estimated_completion_time/1000.0/60.0/60.0) AS eta_h,
 CONVERT(VARCHAR(1000),(SELECT SUBSTRING(text,r.statement_start_offset/2,
 CASE WHEN r.statement_end_offset = -1 THEN 1000 ELSE (r.statement_end_offset-r.statement_start_offset)/2 END)
 FROM sys.dm_exec_sql_text(sql_handle))) AS query,r.session_id
-FROM sys.dm_exec_requests r WHERE command IN ('RESTORE DATABASE','BACKUP DATABASE','BACKUP LOG')
+FROM sys.dm_exec_requests r WHERE command IN ('RESTORE DATABASE','BACKUP DATABASE','BACKUP LOG') 
 GO
 
 CREATE OR ALTER VIEW qpi.dm_query_locks
 AS
-SELECT
+SELECT   
 	text = q.text,
 	session_id = q.session_id,
 	tl.request_owner_type,
@@ -174,7 +177,7 @@ SELECT
 	tl.resource_associated_entity_id
 FROM qpi.dm_queries q
 	JOIN sys.dm_tran_locks as tl
-		ON q.session_id = tl.request_session_id and q.request_id = tl.request_request_id
+		ON q.session_id = tl.request_session_id and q.request_id = tl.request_request_id 
 		LEFT JOIN sys.partitions p ON p.hobt_id = tl.resource_associated_entity_id
 			LEFT JOIN sys.objects obj ON p.object_id = obj.object_id
 GO
@@ -186,21 +189,21 @@ GO
 -- Returns the stats for the currently running queries.
 CREATE   VIEW qpi.dm_query_stats
 AS
-SELECT
-		text =   IIF(LEFT(t.text,1) = '(', TRIM(')' FROM SUBSTRING( t.text, (PATINDEX( '%)[^,]%', t.text))+1, LEN(t.text))), t.text) ,
-		params =  IIF(LEFT(t.text,1) = '(', SUBSTRING( t.text, 0, (PATINDEX( '%)[^,]%', t.text))+1), "") ,
+SELECT  
+		text =  QUERYTEXT(t.text), 
+		params = QUERYPARAM(t.text),
 		execution_type_desc = status COLLATE Latin1_General_CS_AS,
 		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
-		elapsed_time_s = total_elapsed_time /1000.0,
-		cpu_time_s = cpu_time /1000.0,
+		elapsed_time_s = total_elapsed_time /1000.0, 
+		cpu_time_s = cpu_time /1000.0, 		 
 		logical_io_reads = logical_reads,
 		logical_io_writes = writes,
-		physical_io_reads = reads,
-		num_physical_io_reads = NULL,
+		physical_io_reads = reads, 
+		num_physical_io_reads = NULL, 
 		clr_time = NULL,
 		dop,
-		row_count,
-		memory_mb = granted_query_memory *8 /1024,
+		row_count, 
+		memory_mb = granted_query_memory *8 /1024, 
 		log_bytes = NULL,
 		tempdb_space = NULL,
 		query_text_id = NULL, query_id = NULL, plan_id = NULL,
@@ -214,7 +217,7 @@ GO
 
 CREATE OR ALTER VIEW qpi.dm_blocked_queries
 AS
-SELECT
+SELECT   
 	text = blocked.text,
 	session_id = blocked.session_id,
 	blocked_by_session_id = conn.session_id,
@@ -234,12 +237,12 @@ SELECT
 	w.resource_description
 FROM qpi.dm_queries blocked
 	INNER JOIN sys.dm_os_waiting_tasks w
-	ON blocked.session_id = w.session_id
+	ON blocked.session_id = w.session_id 
 		INNER JOIN sys.dm_exec_connections conn
 		ON conn.session_id =  w.blocking_session_id
-			CROSS APPLY sys.dm_exec_sql_text(conn.most_recent_sql_handle) AS last_query
+			CROSS APPLY sys.dm_exec_sql_text(conn.most_recent_sql_handle) AS last_query 
 	LEFT JOIN sys.dm_tran_locks as tl
-	 ON tl.lock_owner_address = w.resource_address
+	 ON tl.lock_owner_address = w.resource_address 
 	 LEFT JOIN sys.partitions p ON p.hobt_id = tl.resource_associated_entity_id
 		LEFT JOIN sys.objects obj ON p.object_id = obj.object_id
 WHERE w.session_id <> w.blocking_session_id
@@ -261,7 +264,7 @@ CREATE TABLE qpi.dm_os_wait_stats_snapshot
 	start_time datetime2 GENERATED ALWAYS AS ROW START,
 	end_time datetime2 GENERATED ALWAYS AS ROW END,
 	PERIOD FOR SYSTEM_TIME (start_time, end_time),
-	PRIMARY KEY (wait_type)
+	PRIMARY KEY (wait_type)  
  ) WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.dm_os_wait_stats_snapshot_history));
 GO
 CREATE INDEX ix_dm_os_wait_stats_snapshot
@@ -303,9 +306,9 @@ AS RETURN ( SELECT
 		WHEN @wait_type IN ('LOGMGR', 'LOGBUFFER', 'LOGMGR_RESERVE_APPEND', 'LOGMGR_FLUSH',
 							'LOGMGR_PMM_LOG', 'CHKPT', 'WRITELOG')
 														THEN 14
-		WHEN @wait_type IN ('ASYNC_NETWORK_IO', 'NET_WAITFOR_PACKET', 'PROXY_NETWORK_IO',
+		WHEN @wait_type IN ('ASYNC_NETWORK_IO', 'NET_WAITFOR_PACKET', 'PROXY_NETWORK_IO', 
 							'EXTERNAL_SCRIPT_NETWORK_IO')
-														THEN 15
+														THEN 15														
 		WHEN @wait_type IN ('CXPACKET', 'EXCHANGE')
 														THEN 16
 		WHEN @wait_type IN ('RESOURCE_SEMAPHORE', 'CMEMTHREAD', 'CMEMPARTITIONED', 'EE_PMOLOCK',
@@ -330,7 +333,7 @@ AS RETURN ( SELECT
 		WHEN @wait_type LIKE 'PWAIT_HADR_%'				THEN 22
 		WHEN @wait_type IN ('LOG_RATE_GOVERNOR', 'POOL_LOG_RATE_GOVERNOR',
 							'HADR_THROTTLE_LOG_RATE_GOVERNOR', 'INSTANCE_LOG_RATE_GOVERNOR')
-														THEN 23
+														THEN 23		
 		ELSE NULL
 	END AS category_id
 );
@@ -399,20 +402,20 @@ USING (
         N'CLR_MANUAL_EVENT', -- www.sqlskills.com/help/waits/CLR_MANUAL_EVENT
         N'CLR_SEMAPHORE', -- www.sqlskills.com/help/waits/CLR_SEMAPHORE
         N'CXCONSUMER', -- www.sqlskills.com/help/waits/CXCONSUMER
-
+ 
         -- Maybe comment these four out if you have mirroring issues
         N'DBMIRROR_DBM_EVENT', -- www.sqlskills.com/help/waits/DBMIRROR_DBM_EVENT
         N'DBMIRROR_EVENTS_QUEUE', -- www.sqlskills.com/help/waits/DBMIRROR_EVENTS_QUEUE
         N'DBMIRROR_WORKER_QUEUE', -- www.sqlskills.com/help/waits/DBMIRROR_WORKER_QUEUE
         N'DBMIRRORING_CMD', -- www.sqlskills.com/help/waits/DBMIRRORING_CMD
-
+ 
         N'DIRTY_PAGE_POLL', -- www.sqlskills.com/help/waits/DIRTY_PAGE_POLL
         N'DISPATCHER_QUEUE_SEMAPHORE', -- www.sqlskills.com/help/waits/DISPATCHER_QUEUE_SEMAPHORE
         N'EXECSYNC', -- www.sqlskills.com/help/waits/EXECSYNC
         N'FSAGENT', -- www.sqlskills.com/help/waits/FSAGENT
         N'FT_IFTS_SCHEDULER_IDLE_WAIT', -- www.sqlskills.com/help/waits/FT_IFTS_SCHEDULER_IDLE_WAIT
         N'FT_IFTSHC_MUTEX', -- www.sqlskills.com/help/waits/FT_IFTSHC_MUTEX
-
+ 
         -- Maybe comment these six out if you have AG issues
         N'HADR_CLUSAPI_CALL', -- www.sqlskills.com/help/waits/HADR_CLUSAPI_CALL
         N'HADR_FILESTREAM_IOMGR_IOCOMPLETION', -- www.sqlskills.com/help/waits/HADR_FILESTREAM_IOMGR_IOCOMPLETION
@@ -420,7 +423,7 @@ USING (
         N'HADR_NOTIFICATION_DEQUEUE', -- www.sqlskills.com/help/waits/HADR_NOTIFICATION_DEQUEUE
         N'HADR_TIMER_TASK', -- www.sqlskills.com/help/waits/HADR_TIMER_TASK
         N'HADR_WORK_QUEUE', -- www.sqlskills.com/help/waits/HADR_WORK_QUEUE
-
+ 
         N'KSOURCE_WAKEUP', -- www.sqlskills.com/help/waits/KSOURCE_WAKEUP
         N'LAZYWRITER_SLEEP', -- www.sqlskills.com/help/waits/LAZYWRITER_SLEEP
         N'LOGMGR_QUEUE', -- www.sqlskills.com/help/waits/LOGMGR_QUEUE
@@ -482,7 +485,7 @@ UPDATE SET
 	Target.[max_wait_time_ms] = Source.[max_wait_time_ms],
 	Target.[signal_wait_time_ms] = Source.[signal_wait_time_ms],
 	Target.title = ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20))
-	-- IMPORTANT: DO NOT subtract Source-Target because the source always has a diff.
+	-- IMPORTANT: DO NOT subtract Source-Target because the source always has a diff. 
 	-- On each snapshot wait starts are reset to 0 - see DBCC SQLPERF('sys.dm_os_wait_stats', CLEAR);
 	-- Therefore, current snapshot is diff.
 	-- #alzheimer
@@ -499,7 +502,7 @@ VALUES (Source.category_id, Source.[wait_type],Source.[waiting_tasks_count],
 		ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)));
 
 DBCC SQLPERF('sys.dm_os_wait_stats', CLEAR);
-
+ 
 END
 GO
 
@@ -509,16 +512,16 @@ as return (
 select
 			category = c.category,
 			wait_type,
-			wait_time_s = wait_time_ms /1000,
+			wait_time_s = wait_time_ms /1000, 
 			avg_wait_time = wait_time_ms / DATEDIFF(ms, start_time, GETUTCDATE()),
-			signal_wait_time_s = signal_wait_time_ms /1000,
+			signal_wait_time_s = signal_wait_time_ms /1000, 
 			avg_signal_wait_time = signal_wait_time_ms / DATEDIFF(ms, start_time, GETUTCDATE()),
 			max_wait_time_s = max_wait_time_ms /1000,
 			category_id,
 			snapshot_time = start_time
 from qpi.dm_os_wait_stats_snapshot for system_time all rsi
 	cross apply qpi.__wait_stats_category(category_id) as c
-where @date is null or @date between rsi.start_time and rsi.end_time
+where @date is null or @date between rsi.start_time and rsi.end_time 
 );
 go
 CREATE OR ALTER
@@ -539,11 +542,11 @@ create or alter
 function qpi.query_plan_wait_stats_as_of(@date datetime2)
 	returns table
 as return (
-select
-		text =   IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
-		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), "") ,
+select	 
+		text =  QUERYTEXT(t.query_sql_text),
+		params = QUERYPARAM(t.query_sql_text),
 		category = ws.wait_category_desc, wait_time_s = ws.avg_query_wait_time_ms /1000.0,
-		q.query_id, ws.plan_id, ws.execution_type_desc,
+		q.query_id, ws.plan_id, ws.execution_type_desc, 
 		rsi.start_time, rsi.end_time,
 		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
 		ws.runtime_stats_interval_id, ws.wait_stats_id, q.query_hash
@@ -552,7 +555,7 @@ from sys.query_store_query_text t
 	join sys.query_store_plan p on p.query_id = q.query_id
 	join sys.query_store_wait_stats ws on ws.plan_id = p.plan_id
 	join sys.query_store_runtime_stats_interval rsi on ws.runtime_stats_interval_id = rsi.runtime_stats_interval_id
-where @date is null or @date between rsi.start_time and rsi.end_time
+where @date is null or @date between rsi.start_time and rsi.end_time 
 );
 go
 
@@ -565,11 +568,11 @@ create or alter
 function qpi.query_wait_stats_as_of(@date datetime2)
 	returns table
 as return (
-	select
+	select	
 		text = min(text),
 		params = min(params),
 		category, wait_time_s = sum(wait_time_s),
-		execution_type_desc,
+		execution_type_desc, 
 		start_time = min(start_time), end_time = min(end_time),
 		interval_mi = min(interval_mi)
 from qpi.query_plan_wait_stats_as_of(@date)
@@ -590,20 +593,20 @@ go
 CREATE OR ALTER  function qpi.query_plan_stats_as_of(@date datetime2)
 returns table
 as return (
-select	t.query_text_id, q.query_id,
-		text =   IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
-		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), "") ,
+select	t.query_text_id, q.query_id, 
+		text =  QUERYTEXT(t.query_sql_text),
+		params = QUERYPARAM(t.query_sql_text),
 		rs.plan_id,
-		rs.execution_type_desc,
+		rs.execution_type_desc, 
         rs.count_executions,
-        duration_s = rs.avg_duration /1000.0 /1000.0,
+        duration_s = rs.avg_duration /1000.0 /1000.0, 
         cpu_time_s = rs.avg_cpu_time /1000.0 /1000.0,
         logical_io_reads_kb = rs.avg_logical_io_reads * 8,
-        logical_io_writes_kb = rs.avg_logical_io_writes * 8,
-        physical_io_reads_kb = rs.avg_physical_io_reads * 8,
-        clr_time_s = rs.avg_clr_time /1000.0 /1000.0,
+        logical_io_writes_kb = rs.avg_logical_io_writes * 8, 
+        physical_io_reads_kb = rs.avg_physical_io_reads * 8, 
+        clr_time_s = rs.avg_clr_time /1000.0 /1000.0, 
         max_used_memory_mb = rs.avg_query_max_used_memory * 8.0 /1000,
-        num_physical_io_reads = rs.avg_num_physical_io_reads,
+        num_physical_io_reads = rs.avg_num_physical_io_reads, 
         log_bytes_used_kb = rs.avg_log_bytes_used /1000.0,
         rs.avg_tempdb_space_used,
 		start_time = convert(varchar(16), rsi.start_time, 20),
@@ -614,7 +617,7 @@ from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
 	join sys.query_store_plan p on p.query_id = q.query_id
 	join sys.query_store_runtime_stats rs on rs.plan_id = p.plan_id
-	join sys.query_store_runtime_stats_interval rsi
+	join sys.query_store_runtime_stats_interval rsi 
 			on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
 where (@date is null or @date between rsi.start_time and rsi.end_time)
 
@@ -636,9 +639,9 @@ GO
 CREATE   function qpi.query_plan_stats_ex_as_of(@date datetime2)
 returns table
 as return (
-select	q.query_id,
-		text =   IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
-		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), "") ,
+select	q.query_id, 
+		text =  QUERYTEXT(t.query_sql_text),
+		params = QUERYPARAM(t.query_sql_text),
 		t.query_text_id, rsi.start_time, rsi.end_time,
 		rs.*, q.query_hash,
 		interval_mi = datediff(mi, rsi.start_time, rsi.end_time)
@@ -647,7 +650,7 @@ from sys.query_store_query_text t
 	join sys.query_store_plan p on p.query_id = q.query_id
 	join sys.query_store_runtime_stats rs on rs.plan_id = p.plan_id
 	join sys.query_store_runtime_stats_interval rsi on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
-where @date is null or @date between rsi.start_time and rsi.end_time
+where @date is null or @date between rsi.start_time and rsi.end_time 
 );
 GO
 
@@ -676,19 +679,19 @@ SELECT	qps.query_id, execution_type_desc,
 		avg_tempdb_space_used = SUM(avg_tempdb_space_used),
 		start_time = MIN(start_time),
 		interval_mi = MIN(interval_mi)
-FROM qpi.query_plan_stats_as_of(@date) qps
+FROM qpi.query_plan_stats_as_of(@date) qps 
 GROUP BY query_id, execution_type_desc
 )
-SELECT  text =   IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
-		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), "") ,
+SELECT  text =  QUERYTEXT(t.query_sql_text),
+		params = QUERYPARAM(t.query_sql_text),
 		qs.*,
 		t.query_text_id
 FROM query_stats qs
-	join sys.query_store_query q
+	join sys.query_store_query q  
 	on q.query_id = qs.query_id
 	join sys.query_store_query_text t
 	on q.query_text_id = t.query_text_id
-
+	
 )
 GO
 
@@ -705,7 +708,7 @@ create   function qpi.compare_query_stats_on_intervals (@query_id int, @date1 da
 returns table
 return (
 	select a.[key], a.value value1, b.value value2
-	from
+	from 
 	(select [key], value
 	from openjson(
 	(select *
@@ -713,7 +716,7 @@ return (
 		where query_id = @query_id
 		for json path, without_array_wrapper)
 	)) as a ([key], value)
-	join
+	join 
 	(select [key], value
 	from openjson(
 	(select *
@@ -731,7 +734,7 @@ CREATE     FUNCTION qpi.compare_query_plans (@plan_id1 int, @plan_id2 int)
 returns table
 return (
 	select a.[key], a.value value1, b.value value2
-	from
+	from 
 	(select [key], value
 	from openjson(
 	(select *
@@ -739,7 +742,7 @@ return (
 		where plan_id = @plan_id1
 		for json path, without_array_wrapper)
 	)) as a ([key], value)
-	join
+	join 
 	(select [key], value
 	from openjson(
 	(select *
@@ -766,8 +769,8 @@ return (
 		d_physical_io_reads = rs2.avg_physical_io_reads - rs1.avg_physical_io_reads,
 		d_physical_io_reads_perc = iif(rs2.avg_physical_io_reads=0, null, ROUND(100*(1 - rs1.avg_physical_io_reads/rs2.avg_physical_io_reads),0)),
 		d_log_bytes_used = rs2.avg_log_bytes_used - rs1.avg_log_bytes_used,
-		d_log_bytes_used_perc = iif(rs2.avg_log_bytes_used=0, null, ROUND(100*(1 - rs1.avg_log_bytes_used/rs2.avg_log_bytes_used),0)),
-		q.query_text_id, q.query_id, p.plan_id
+		d_log_bytes_used_perc = iif(rs2.avg_log_bytes_used=0, null, ROUND(100*(1 - rs1.avg_log_bytes_used/rs2.avg_log_bytes_used),0)),		
+		q.query_text_id, q.query_id, p.plan_id 
 from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
 	join sys.query_store_plan p on p.query_id = q.query_id
@@ -782,7 +785,7 @@ and (@date2 is null or rsi2.start_time <= @date2 and @date2 < rsi2.end_time)
 GO
 GO
 
-
+#ifndef DB
 ---------------------------------------------------------------------------------------------------
 -- www.sqlskills.com/blogs/paul/how-to-examine-io-subsystem-latencies-from-within-sql-server/
 ---------------------------------------------------------------------------------------------------
@@ -847,12 +850,12 @@ INSERT (db_name,database_id,file_name,size_gb,[file_id],
     [io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
     [num_of_bytes_read], [num_of_bytes_written],
     [num_of_reads], [num_of_writes], title)
-VALUES (Source.db_name,Source.database_id,Source.file_name,Source.size_gb,Source.[file_id],Source.[io_stall_read_ms],Source.[io_stall_write_ms],Source.[io_stall_queued_read_ms],Source.[io_stall_queued_write_ms],Source.[io_stall],Source.[num_of_bytes_read],Source.[num_of_bytes_written],Source.[num_of_reads],Source.[num_of_writes],ISNULL(@title, CAST( GETDATE() as NVARCHAR(50))));
+VALUES (Source.db_name,Source.database_id,Source.file_name,Source.size_gb,Source.[file_id],Source.[io_stall_read_ms],Source.[io_stall_write_ms],Source.[io_stall_queued_read_ms],Source.[io_stall_queued_write_ms],Source.[io_stall],Source.[num_of_bytes_read],Source.[num_of_bytes_written],Source.[num_of_reads],Source.[num_of_writes],ISNULL(@title, CAST( GETDATE() as NVARCHAR(50)))); 
 END
 GO
 CREATE OR ALTER FUNCTION qpi.fn_file_stats(@database_id int, @end_date datetime2 = null, @milestone nvarchar(100) = null)
 RETURNS TABLE
-AS RETURN (
+AS RETURN ( 
 	-- for testing: DECLARE @database_id int = DB_ID(), @end_date datetime2 = null, @milestone nvarchar(100) = null;
 with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
 				[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes], title, start_time, end_time)
@@ -905,12 +908,12 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 		write_latency_ms
 			= CASE WHEN (cur.num_of_writes - prev.num_of_writes) = 0
 				THEN NULL ELSE (CAST(ROUND(1.0 * (cur.io_stall_write_ms - prev.io_stall_write_ms) / (cur.num_of_writes - prev.num_of_writes), 1) AS numeric(5,1))) END,
-		read_stall_ms =
+		read_stall_ms = 
 			CASE WHEN (cur.num_of_reads - prev.num_of_reads) = 0
-				THEN NULL ELSE
+				THEN NULL ELSE 
 			CAST(ROUND(((cur.io_stall_read_ms-cur.io_stall_queued_read_ms) - (prev.io_stall_read_ms - prev.io_stall_queued_read_ms))/(cur.num_of_reads - prev.num_of_reads),2) AS NUMERIC(10,2))
 			END,
-		write_stall_ms =
+		write_stall_ms = 
 		CASE WHEN (cur.num_of_writes - prev.num_of_writes) = 0
 				THEN NULL
 				ELSE CAST(ROUND(((cur.io_stall_write_ms-cur.io_stall_queued_write_ms) - (prev.io_stall_write_ms - prev.io_stall_queued_write_ms))/(cur.num_of_writes - prev.num_of_writes),2) AS NUMERIC(10,2))
@@ -925,7 +928,7 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 			= CASE WHEN ((cur.num_of_reads - prev.num_of_reads) = 0 AND (cur.num_of_writes - prev.num_of_writes) = 0)
 				THEN NULL ELSE CAST(
 					(((cur.num_of_bytes_read - prev.num_of_bytes_read) + (cur.num_of_bytes_written - prev.num_of_bytes_written)) /
-					((cur.num_of_reads - prev.num_of_reads) + (cur.num_of_writes - prev.num_of_writes)))/1024.0
+					((cur.num_of_reads - prev.num_of_reads) + (cur.num_of_writes - prev.num_of_writes)))/1024.0 
 					 AS numeric(10,1)) END,
 		read_mb = CAST((cur.num_of_bytes_read - prev.num_of_bytes_read)/1024.0/1024 AS numeric(10,2)),
 		write_mb = CAST((cur.num_of_bytes_written - prev.num_of_bytes_written)/1024.0/1024 AS numeric(10,2)),
@@ -933,14 +936,14 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 		num_of_writes = cur.num_of_writes - prev.num_of_writes,
 		interval_mi = DATEDIFF(minute, prev.start_time, cur.start_time)
 	FROM cur
-		JOIN qpi.dm_io_virtual_file_stats_snapshot for system_time all as prev
+		JOIN qpi.dm_io_virtual_file_stats_snapshot for system_time all as prev 
 			ON cur.file_id = prev.file_id
 			AND cur.database_id = prev.database_id
 			AND (
 				((@end_date is not null or @milestone is not null) and cur.start_time = prev.end_time)	-- cur is snapshot history => get the previous snapshot history record
-				OR
+				OR 
 				((@end_date is null and @milestone is null) and prev.end_time > GETDATE())				-- cur is dm_io_virtual_file_stats => get the latest snapshot history record
-			)
+			)		
 	WHERE (@database_id is null or @database_id = prev.database_id)
 )
 GO
@@ -955,13 +958,13 @@ GO
 
 CREATE OR ALTER FUNCTION qpi.file_stats_as_of(@when datetime2(0))
 RETURNS TABLE
-AS RETURN (SELECT fs.* FROM qpi.fn_file_stats(null, @when, null) fs
+AS RETURN (SELECT fs.* FROM qpi.fn_file_stats(null, @when, null) fs 
 );
 GO
 
 CREATE OR ALTER FUNCTION qpi.db_file_stats_as_of(@when datetime2(0))
 RETURNS TABLE
-AS RETURN (SELECT fs.* FROM qpi.fn_file_stats(DB_ID(), @when, null) fs
+AS RETURN (SELECT fs.* FROM qpi.fn_file_stats(DB_ID(), @when, null) fs 
 );
 GO
 
@@ -978,13 +981,26 @@ AS RETURN (
 	SELECT * FROM qpi.fn_file_stats(DB_ID(), null, @milestone)
 );
 GO
+#endif
+
+#ifndef MI
+CREATE FUNCTION qpi.memory_mb()
+RETURNS int AS
+BEGIN
+	RETURN (SELECT size_mb = MIN(CAST(size_mb AS INT)) FROM (SELECT size_mb = maximum FROM [master].[sys].[configurations]
+	WHERE NAME = 'Max server memory (MB)'
+	UNION ALL
+	SELECT size_mb = available_page_file_kb / 1024 FROM [master].[sys].[dm_os_sys_memory]) as m);
+END
+GO
+#else
 CREATE FUNCTION qpi.memory_mb()
 RETURNS int AS
 BEGIN
  RETURN (SELECT process_memory_limit_mb - non_sos_mem_gap_mb FROM sys.dm_os_job_object);
 END
 GO
-
+#endif
 
 CREATE VIEW qpi.file_stats_snapshots
 AS
@@ -998,7 +1014,7 @@ SELECT	volume_mount_point,
 		used_gb = MIN(total_bytes / 1024 / 1024 / 1024),
 		available_gb = MIN(available_bytes / 1024 / 1024 / 1024),
 		total_gb = MIN((total_bytes+available_bytes) / 1024 / 1024 / 1024)
-FROM sys.master_files AS f
+FROM sys.master_files AS f  
 CROSS APPLY sys.dm_os_volume_stats(f.database_id, f.file_id)
 GROUP BY volume_mount_point;
 GO
@@ -1020,19 +1036,19 @@ SELECT
 	[idle_perc] = cpu_idle,
     [other_perc] = 100 - cpu_sql - cpu_idle
    FROM sys.dm_os_sys_info,
-   ( SELECT
+   ( SELECT  
          cpu_idle = record.value('(./Record/SchedulerMonitorEvent/SystemHealth/SystemIdle)[1]', 'int'),
          cpu_sql = record.value('(./Record/SchedulerMonitorEvent/SystemHealth/ProcessUtilization)[1]', 'int')
                FROM (
-         SELECT TOP 1 CONVERT(XML, record) AS record
-         FROM sys.dm_os_ring_buffers
+         SELECT TOP 1 CONVERT(XML, record) AS record 
+         FROM sys.dm_os_ring_buffers 
          WHERE ring_buffer_type = N'RING_BUFFER_SCHEDULER_MONITOR'
          AND record LIKE '% %'
 		 ORDER BY TIMESTAMP DESC
 		 ) as x(record)
 		 ) as y
-GO
-
+GO      
+   
 CREATE VIEW qpi.dm_mem_plan_cache_info
 AS
 SELECT  cached_object = objtype,
@@ -1044,7 +1060,7 @@ GO
 
 CREATE VIEW qpi.dm_mem_usage
 AS
-SELECT memory = REPLACE(type, 'MEMORYCLERK_', "")
+SELECT memory = REPLACE(type, 'MEMORYCLERK_', "") 
      , mem_gb = sum(pages_kb)/1024/1024
 	 , mem_perc = ROUND(sum(pages_kb)/1024.0/ qpi.memory_mb() ,2)
    FROM sys.dm_os_memory_clerks
@@ -1060,52 +1076,52 @@ CREATE VIEW qpi.dm_db_mem_usage
 AS
 WITH src AS
 (
-SELECT
+SELECT 
 database_id, db_buffer_pages = COUNT_BIG(*)
 FROM sys.dm_os_buffer_descriptors
 --WHERE database_id BETWEEN 5 AND 32766 --> to exclude system databases
 GROUP BY database_id
 )
 SELECT
-[db_name] = CASE [database_id] WHEN 32767
-THEN 'Resource DB'
+[db_name] = CASE [database_id] WHEN 32767 
+THEN 'Resource DB' 
 ELSE DB_NAME([database_id]) END,
 buffer_gb = db_buffer_pages / 128 /1024,
-buffer_percent = CONVERT(DECIMAL(6,3),
+buffer_percent = CONVERT(DECIMAL(6,3), 
 db_buffer_pages * 100.0 / (SELECT top 1 cntr_value
-							FROM sys.dm_os_performance_counters
+							FROM sys.dm_os_performance_counters 
 							WHERE RTRIM([object_name]) LIKE '%Buffer Manager'
 							AND counter_name = 'Database Pages')
 )
 FROM src
 GO
-
+#ifndef SQL2016
 CREATE OR ALTER VIEW
 qpi.dm_recommendations
 AS
-SELECT	name, reason, score,
+SELECT	name, reason, score, 
 		[state] = JSON_VALUE(state, '$.currentValue'),
         script = JSON_VALUE(details, '$.implementationDetails.script'),
         details
 FROM sys.dm_db_tuning_recommendations;
 GO
-
+#endif
 
 ---------------------------------------------------------------------------------------------------------
 --			High availability
 ---------------------------------------------------------------------------------------------------------
-
+#ifdef MI
 CREATE OR ALTER VIEW
 qpi.nodes
 AS
 with nodes as (
-	select db_name = DB_NAME(database_id),
-		minlsn = CONVERT(NUMERIC(38,0), ISNULL(truncation_lsn, 0)),
+	select db_name = DB_NAME(database_id), 
+		minlsn = CONVERT(NUMERIC(38,0), ISNULL(truncation_lsn, 0)), 
 		maxlsn = CONVERT(NUMERIC(38,0), ISNULL(last_hardened_lsn, 0)),
 		seeding_state =
 			CASE WHEN seedStats.internal_state_desc NOT IN ('Success', 'Failed') OR synchronization_health = 1
 						THEN 'Warning' ELSE
-                     (CASE WHEN synchronization_state = 0 OR synchronization_health != 2
+                     (CASE WHEN synchronization_state = 0 OR synchronization_health != 2 
 							THEN 'ERROR' ELSE 'OK' END)
 			END,
 		replication_endpoint_url =
@@ -1114,7 +1130,7 @@ with nodes as (
         ELSE replication_endpoint_url END,
 		repl_states.* , seedStats.internal_state_desc, frs.fabric_replica_role
 		from sys.dm_hadr_database_replica_states repl_states
-              LEFT JOIN sys.dm_hadr_fabric_replica_states frs
+              LEFT JOIN sys.dm_hadr_fabric_replica_states frs 
                      ON repl_states.replica_id = frs.replica_id
               LEFT OUTER JOIN sys.dm_hadr_physical_seeding_stats seedStats
                      ON seedStats.remote_machine_name = replication_endpoint_url
@@ -1124,15 +1140,15 @@ with nodes as (
                      ON repl_states.group_database_id = fccs.copy_guid
 ),
 nodes_progress AS (
-SELECT *, logprogresssize_p =
-                     CASE WHEN maxlsn - minlsn != 0 THEN maxlsn - minlsn
+SELECT *, logprogresssize_p = 
+                     CASE WHEN maxlsn - minlsn != 0 THEN maxlsn - minlsn 
                            ELSE 0 END
 FROM nodes
 ),
 nodes_progress_size as (
 select
 	log_progress_size = CASE WHEN last_hardened_lsn > minlsn AND logprogresssize_p > 0
-				THEN (CONVERT(NUMERIC(38,0), last_hardened_lsn) - minlsn)*100.0/logprogresssize_p
+				THEN (CONVERT(NUMERIC(38,0), last_hardened_lsn) - minlsn)*100.0/logprogresssize_p 
     ELSE 0 END,
 	*
 	from nodes_progress
@@ -1143,7 +1159,7 @@ SELECT
 	catchup_progress = CASE WHEN internal_state_desc IS NOT NULL -- Check for active seeding
                            THEN 'Seeding'
                      WHEN logprogresssize_p > 0
-                           THEN CONVERT(VARCHAR(100), CONVERT(NUMERIC(20,2),log_progress_size)) + '%'
+                           THEN CONVERT(VARCHAR(100), CONVERT(NUMERIC(20,2),log_progress_size)) + '%' 
                      ELSE 'Select the Primary Node' END,
 	is_local,
 	is_primary_replica,
@@ -1176,7 +1192,7 @@ qpi.db_nodes
 AS
 SELECT * FROM qpi.nodes WHERE database_id = DB_ID();
 GO
-
+#endif
 ---------------------------------------------------------------------------------------------------
 --				Performance counters
 ---------------------------------------------------------------------------------------------------
@@ -1205,12 +1221,12 @@ where cntr_type in (65792, 1073939712) --  PERF_COUNTER_LARGE_RAWCOUNT, PERF_LAR
 and pc.cntr_value > 0
 union all
 -- PERF_LARGE_RAW_FRACTION
-select	name = pc.counter_name,
-		value =
-			CASE
+select	name = pc.counter_name, 
+		value = 
+			CASE 
 				WHEN base.cntr_value = 0 THEN NULL
 				ELSE 100*pc.cntr_value/base.cntr_value
-			END, object = pc.object_name,
+			END, object = pc.object_name, 
 		instance_name = pc.instance_name,
 		type = pc.cntr_type
 from sys.dm_os_performance_counters pc
@@ -1222,7 +1238,7 @@ where pc.cntr_type = 537003264 -- PERF_LARGE_RAW_FRACTION
 and base.cntr_type = 1073939712 -- PERF_LARGE_RAW_BASE
 union all
 -- PERF_COUNTER_BULK_COUNT
-select	name = pc.counter_name,
+select	name = pc.counter_name, 
 		value = (pc.cntr_value-prev.value)/(DATEDIFF(millisecond, prev.start_time, GETUTCDATE()) / 1000.),
 		object = pc.object_name,
 		instance_name = pc.instance_name,
@@ -1237,12 +1253,12 @@ where pc.cntr_type = 272696576 -- PERF_COUNTER_BULK_COUNT
 and (pc.cntr_value-prev.value) > 0
 union ALL
 -- PERF_AVERAGE_BULK
-select	name = A1.counter_name,
+select	name = A1.counter_name, 
 		value =  CASE
 		WHEN (B2.value = B1.cntr_value) THEN NULL
 		ELSE (A2.value - A1.cntr_value) / (B2.value - B1.cntr_value)
-		END,
-		object = A1.object_name,
+		END, 
+		object = A1.object_name, 
 		A1.instance_name,
 		type = A1.cntr_type
 from sys.dm_os_performance_counters A1
@@ -1256,7 +1272,7 @@ from sys.dm_os_performance_counters A1
 		and A1.instance_name COLLATE Latin1_General_100_CI_AS = A2.instance_name
 		and A1.cntr_type = A2.type
 	join qpi.dm_os_performance_counters_snapshot B2
-		on rtrim(A2.name) + ' base'  = B2.name
+		on rtrim(A2.name) + ' base'  = B2.name	 
 		and A2.instance_name = B2.instance_name
 		and A2.name = B2.name
 where A1.cntr_type = 1073874176 -- PERF_AVERAGE_BULK
@@ -1266,13 +1282,16 @@ and B2.type = 1073939712 -- PERF_LARGE_RAW_BASE
 )
 SELECT	pc.name, pc.value, pc.type,
 		instance_name =
-
+#ifdef MI
 			ISNULL(d.name, pc.instance_name)
+#else
+			pc.instance_name
+#endif
 FROM perf_counter_types pc
-
+#ifdef MI
 left join sys.databases d
 			on pc.instance_name = d.physical_database_name
-
+#endif
 GO
 
 CREATE OR ALTER PROCEDURE qpi.snapshot_perf_counters
@@ -1285,7 +1304,7 @@ USING (
 	-- Do not use the trick with joining instance name with sys.databases.physical_name
 	-- because there are duplicate key insert error on system database
 	) AS Source
-ON (Target.object = Source.object COLLATE Latin1_General_100_CI_AS
+ON (Target.object = Source.object COLLATE Latin1_General_100_CI_AS 
 	AND Target.name = Source.name COLLATE Latin1_General_100_CI_AS
 	AND Target.instance_name = Source.instance_name COLLATE Latin1_General_100_CI_AS
 	AND Target.type = Source.type)
@@ -1295,7 +1314,7 @@ UPDATE SET
 WHEN NOT MATCHED BY TARGET THEN
 INSERT (name, value, object, instance_name, type)
 VALUES (Source.name,Source.value,Source.object,instance_name,Source.type)
-;
+; 
 END
 GO
 SET QUOTED_IDENTIFIER ON;

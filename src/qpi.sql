@@ -2,6 +2,9 @@
 --	SQL Server & Azure SQL Managed Instance - Query Performance Insights
 --	Author: Jovan Popovic
 --------------------------------------------------------------------------------
+SET QUOTED_IDENTIFIER OFF; -- Because I like to use "" as string literal
+GO
+
 CREATE SCHEMA qpi;
 GO
 
@@ -83,7 +86,7 @@ GO
 CREATE OR ALTER VIEW qpi.queries
 as
 select	text =  IIF(LEFT(query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text),
-		params = IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), ''),
+		params = IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), ""),
 		q.query_text_id, query_id, context_settings_id, q.query_hash		
 from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
@@ -112,7 +115,7 @@ CREATE OR ALTER VIEW qpi.dm_queries
 AS
 SELECT  
 		text =  IIF(LEFT(text,1) = '(', TRIM(')' FROM SUBSTRING( text, (PATINDEX( '%)[^,]%', text))+1, LEN(text))), text),
-		params = IIF(LEFT(text,1) = '(', SUBSTRING( text, 0, (PATINDEX( '%)[^,]%', text))+1), ''),
+		params = IIF(LEFT(text,1) = '(', SUBSTRING( text, 0, (PATINDEX( '%)[^,]%', text))+1), ""),
 		execution_type_desc = status COLLATE Latin1_General_CS_AS,
 		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
 		elapsed_time_s = total_elapsed_time /1000.0, 
@@ -182,7 +185,7 @@ CREATE   VIEW qpi.dm_query_stats
 AS
 SELECT  
 		text =  IIF(LEFT(t.text,1) = '(', TRIM(')' FROM SUBSTRING( t.text, (PATINDEX( '%)[^,]%', t.text))+1, LEN(t.text))), t.text),
-		params = IIF(LEFT(t.text,1) = '(', SUBSTRING( t.text, 0, (PATINDEX( '%)[^,]%', t.text))+1), ''),
+		params = IIF(LEFT(t.text,1) = '(', SUBSTRING( t.text, 0, (PATINDEX( '%)[^,]%', t.text))+1), ""),
 		execution_type_desc = status COLLATE Latin1_General_CS_AS,
 		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
 		elapsed_time_s = total_elapsed_time /1000.0, 
@@ -535,7 +538,7 @@ function qpi.query_plan_wait_stats_as_of(@date datetime2)
 as return (
 select	 
 		text =  IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text),
-		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ''),
+		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ""),
 		category = ws.wait_category_desc, wait_time_s = ws.avg_query_wait_time_ms /1000.0,
 		q.query_id, ws.plan_id, ws.execution_type_desc, 
 		rsi.start_time, rsi.end_time,
@@ -586,7 +589,7 @@ returns table
 as return (
 select	t.query_text_id, q.query_id, 
 		text =  IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text),
-		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ''),
+		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ""),
 		rs.plan_id,
 		rs.execution_type_desc, 
         rs.count_executions,
@@ -632,7 +635,7 @@ returns table
 as return (
 select	q.query_id, 
 		text =  IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text),
-		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ''),
+		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ""),
 		t.query_text_id, rsi.start_time, rsi.end_time,
 		rs.*, q.query_hash,
 		interval_mi = datediff(mi, rsi.start_time, rsi.end_time)
@@ -674,7 +677,7 @@ FROM qpi.query_plan_stats_as_of(@date) qps
 GROUP BY query_id, execution_type_desc
 )
 SELECT  text =  IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text),
-		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ''),
+		params = IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), ""),
 		qs.*,
 		t.query_text_id
 FROM query_stats qs
@@ -973,11 +976,25 @@ AS RETURN (
 GO
 
 IF SERVERPROPERTY('engineedition') IN (2,3,4)
-EXEC sp_executesql N'CREATE FUNCTION qpi.memory_mb() RETURNS int AS BEGIN RETURN (SELECT size_mb = MIN(CAST(size_mb AS INT)) FROM (SELECT size_mb = maximum FROM [master].[sys].[configurations] WHERE NAME = ''Max server memory (MB)'' UNION ALL SELECT size_mb = available_page_file_kb / 1024 FROM [master].[sys].[dm_os_sys_memory]) as m); END';
+EXEC("
+CREATE FUNCTION qpi.memory_mb()
+RETURNS int AS
+BEGIN
+	RETURN (SELECT size_mb = MIN(CAST(size_mb AS INT)) FROM (SELECT size_mb = maximum FROM [master].[sys].[configurations]
+	WHERE NAME = 'Max server memory (MB)'
+	UNION ALL
+	SELECT size_mb = available_page_file_kb / 1024 FROM [master].[sys].[dm_os_sys_memory]) as m);
+END
+");
 GO
 
 IF SERVERPROPERTY('engineedition') IN (5,8)
-EXEC sp_executesql N'CREATE FUNCTION qpi.memory_mb() RETURNS int AS BEGIN RETURN (SELECT process_memory_limit_mb - non_sos_mem_gap_mb FROM sys.dm_os_job_object); END';
+EXEC("
+CREATE FUNCTION qpi.memory_mb()
+RETURNS int AS
+BEGIN
+ RETURN (SELECT process_memory_limit_mb - non_sos_mem_gap_mb FROM sys.dm_os_job_object);
+END");
 GO
 
 CREATE VIEW qpi.file_stats_snapshots
@@ -1038,7 +1055,7 @@ GO
 
 CREATE VIEW qpi.dm_mem_usage
 AS
-SELECT memory = REPLACE(type, 'MEMORYCLERK_', '') 
+SELECT memory = REPLACE(type, 'MEMORYCLERK_', "") 
      , mem_gb = sum(pages_kb)/1024/1024
 	 , mem_perc = ROUND(sum(pages_kb)/1024.0/ qpi.memory_mb() ,2)
    FROM sys.dm_os_memory_clerks
@@ -1295,4 +1312,6 @@ INSERT (name, value, object, instance_name, type)
 VALUES (Source.name,Source.value,Source.object,instance_name,Source.type)
 ; 
 END
+GO
+SET QUOTED_IDENTIFIER ON;
 GO

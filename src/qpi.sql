@@ -1,5 +1,11 @@
 
 
+
+
+
+
+
+
 --------------------------------------------------------------------------------
 --	SQL Server & Azure SQL Managed Instance - Query Performance Insights
 --	Author: Jovan Popovic
@@ -37,6 +43,7 @@ AS BEGIN RETURN DATEADD(DAY, - ((@time /10000) %100),
 						)
 					) END;
 GO
+
 CREATE OR ALTER FUNCTION qpi.decode_options(@options int)
 RETURNS TABLE
 RETURN (
@@ -87,7 +94,7 @@ return (
 GO
 CREATE OR ALTER VIEW qpi.queries
 as
-select	text =  IIF(LEFT(query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text) ,
+select	text =  SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text)) ,
 		params =  IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), "") ,
 		q.query_text_id, query_id, context_settings_id, q.query_hash
 from sys.query_store_query_text t
@@ -106,12 +113,7 @@ GO
 
 CREATE OR ALTER VIEW qpi.query_texts
 as
-select	q.text, q.params, q.query_text_id,
-
-
-
-		 queries = count(query_id)
-
+select	q.text, q.params, q.query_text_id, queries =  count(query_id)
 from qpi.queries q
 group by q.text, q.params, q.query_text_id
 GO
@@ -120,7 +122,7 @@ GO
 CREATE OR ALTER VIEW qpi.dm_queries
 AS
 SELECT
-		text =   IIF(LEFT(text,1) = '(', TRIM(')' FROM SUBSTRING( text, (PATINDEX( '%)[^,]%', text))+1, LEN(text))), text) ,
+		text =   SUBSTRING( text, (PATINDEX( '%)[^,]%', text))+1, LEN(text)) ,
 		params =  IIF(LEFT(text,1) = '(', SUBSTRING( text, 0, (PATINDEX( '%)[^,]%', text))+1), "") ,
 		execution_type_desc = status COLLATE Latin1_General_CS_AS,
 		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
@@ -190,7 +192,7 @@ GO
 CREATE   VIEW qpi.dm_query_stats
 AS
 SELECT
-		text =   IIF(LEFT(t.text,1) = '(', TRIM(')' FROM SUBSTRING( t.text, (PATINDEX( '%)[^,]%', t.text))+1, LEN(t.text))), t.text) ,
+		text =   SUBSTRING( t.text, (PATINDEX( '%)[^,]%', t.text))+1, LEN(t.text)) ,
 		params =  IIF(LEFT(t.text,1) = '(', SUBSTRING( t.text, 0, (PATINDEX( '%)[^,]%', t.text))+1), "") ,
 		execution_type_desc = status COLLATE Latin1_General_CS_AS,
 		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
@@ -543,7 +545,7 @@ function qpi.query_plan_wait_stats_as_of(@date datetime2)
 	returns table
 as return (
 select
-		text =   IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
+		text =   SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text)) ,
 		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), "") ,
 		category = ws.wait_category_desc, wait_time_s = ws.avg_query_wait_time_ms /1000.0,
 		q.query_id, ws.plan_id, ws.execution_type_desc,
@@ -594,7 +596,7 @@ CREATE OR ALTER  function qpi.query_plan_stats_as_of(@date datetime2)
 returns table
 as return (
 select	t.query_text_id, q.query_id,
-		text =   IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
+		text =   SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text)) ,
 		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), "") ,
 		rs.plan_id,
 		rs.execution_type_desc,
@@ -640,7 +642,7 @@ CREATE   function qpi.query_plan_stats_ex_as_of(@date datetime2)
 returns table
 as return (
 select	q.query_id,
-		text =   IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
+		text =   SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text)) ,
 		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), "") ,
 		t.query_text_id, rsi.start_time, rsi.end_time,
 		rs.*, q.query_hash,
@@ -682,7 +684,7 @@ SELECT	qps.query_id, execution_type_desc,
 FROM qpi.query_plan_stats_as_of(@date) qps
 GROUP BY query_id, execution_type_desc
 )
-SELECT  text =   IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
+SELECT  text =   SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text)) ,
 		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), "") ,
 		qs.*,
 		t.query_text_id
@@ -982,6 +984,13 @@ AS RETURN (
 );
 GO
 
+CREATE VIEW qpi.file_stats_snapshots
+AS
+SELECT DISTINCT snapshot_name = title, start_time, end_time
+FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
+GO
+
+
 
 
 CREATE FUNCTION qpi.memory_mb()
@@ -993,12 +1002,6 @@ BEGIN
 	SELECT size_mb = available_page_file_kb / 1024 FROM [master].[sys].[dm_os_sys_memory]) as m);
 END
 GO
-CREATE VIEW qpi.file_stats_snapshots
-AS
-SELECT DISTINCT snapshot_name = title, start_time, end_time
-FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
-GO
-
 CREATE OR ALTER VIEW qpi.volumes
 AS
 SELECT	volume_mount_point,
@@ -1010,6 +1013,8 @@ CROSS APPLY sys.dm_os_volume_stats(f.database_id, f.file_id)
 GROUP BY volume_mount_point;
 GO
 
+
+
 CREATE VIEW qpi.sys_info
 AS
 SELECT cpu_count,
@@ -1019,6 +1024,9 @@ SELECT cpu_count,
 	physical_cpu_count = cpu_count/hyperthread_ratio
 FROM sys.dm_os_sys_info
 GO
+
+
+
 CREATE VIEW qpi.dm_cpu_usage
 AS
 SELECT
@@ -1039,6 +1047,7 @@ SELECT
 		 ) as x(record)
 		 ) as y
 GO
+
 
 CREATE VIEW qpi.dm_mem_plan_cache_info
 AS

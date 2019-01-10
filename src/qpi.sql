@@ -800,9 +800,14 @@ CREATE VIEW qpi.dm_mem_usage
 AS
 SELECT memory = REPLACE(type, 'MEMORYCLERK_', "")
      , mem_gb = sum(pages_kb)/1024/1024
+	 , mem_perc = ROUND(sum(pages_kb)/1024.0/ qpi.memory_mb() ,2)
    FROM sys.dm_os_memory_clerks
    GROUP BY type
    HAVING sum(pages_kb) /1024 /1024 > 0
+UNION ALL
+	SELECT memory = '_Total',
+		mem_gb = qpi.memory_mb() /1024,
+		mem_perc = 1;
 GO
 -- www.mssqltips.com/sqlservertip/2393/determine-sql-server-memory-use-by-database-and-object/
 CREATE VIEW qpi.dm_db_mem_usage

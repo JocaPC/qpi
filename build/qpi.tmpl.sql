@@ -43,6 +43,7 @@ AS BEGIN RETURN DATEADD(DAY, - ((@time /10000) %100),
 						)						
 					) END;
 GO
+
 CREATE OR ALTER FUNCTION qpi.decode_options(@options int)
 RETURNS TABLE
 RETURN (

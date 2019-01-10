@@ -978,18 +978,14 @@ AS RETURN (
 	SELECT * FROM qpi.fn_file_stats(DB_ID(), null, @milestone)
 );
 GO
-
-
-
 CREATE FUNCTION qpi.memory_mb()
 RETURNS int AS
 BEGIN
-	RETURN (SELECT size_mb = MIN(CAST(size_mb AS INT)) FROM (SELECT size_mb = maximum FROM [master].[sys].[configurations]
-	WHERE NAME = 'Max server memory (MB)'
-	UNION ALL
-	SELECT size_mb = available_page_file_kb / 1024 FROM [master].[sys].[dm_os_sys_memory]) as m);
+ RETURN (SELECT process_memory_limit_mb - non_sos_mem_gap_mb FROM sys.dm_os_job_object);
 END
 GO
+
+
 CREATE VIEW qpi.file_stats_snapshots
 AS
 SELECT DISTINCT snapshot_name = title, start_time, end_time
@@ -1098,6 +1094,89 @@ GO
 ---------------------------------------------------------------------------------------------------------
 --			High availability
 ---------------------------------------------------------------------------------------------------------
+
+CREATE OR ALTER VIEW
+qpi.nodes
+AS
+with nodes as (
+	select db_name = DB_NAME(database_id),
+		minlsn = CONVERT(NUMERIC(38,0), ISNULL(truncation_lsn, 0)),
+		maxlsn = CONVERT(NUMERIC(38,0), ISNULL(last_hardened_lsn, 0)),
+		seeding_state =
+			CASE WHEN seedStats.internal_state_desc NOT IN ('Success', 'Failed') OR synchronization_health = 1
+						THEN 'Warning' ELSE
+                     (CASE WHEN synchronization_state = 0 OR synchronization_health != 2
+							THEN 'ERROR' ELSE 'OK' END)
+			END,
+		replication_endpoint_url =
+		CASE WHEN replication_endpoint_url IS NULL AND (synchronization_state = 1  OR fccs.partner_server IS NOT NULL)
+			THEN fccs.partner_server + ' - ' + fccs.partner_database -- Geo replicas will be in Synchronizing state
+        ELSE replication_endpoint_url END,
+		repl_states.* , seedStats.internal_state_desc, frs.fabric_replica_role
+		from sys.dm_hadr_database_replica_states repl_states
+              LEFT JOIN sys.dm_hadr_fabric_replica_states frs
+                     ON repl_states.replica_id = frs.replica_id
+              LEFT OUTER JOIN sys.dm_hadr_physical_seeding_stats seedStats
+                     ON seedStats.remote_machine_name = replication_endpoint_url
+                     AND (seedStats.local_database_name = repl_states.group_id OR seedStats.local_database_name = DB_NAME(database_id))
+                     AND seedStats.internal_state_desc NOT IN ('Success', 'Failed')
+              LEFT OUTER JOIN sys.dm_hadr_fabric_continuous_copy_status fccs
+                     ON repl_states.group_database_id = fccs.copy_guid
+),
+nodes_progress AS (
+SELECT *, logprogresssize_p =
+                     CASE WHEN maxlsn - minlsn != 0 THEN maxlsn - minlsn
+                           ELSE 0 END
+FROM nodes
+),
+nodes_progress_size as (
+select
+	log_progress_size = CASE WHEN last_hardened_lsn > minlsn AND logprogresssize_p > 0
+				THEN (CONVERT(NUMERIC(38,0), last_hardened_lsn) - minlsn)*100.0/logprogresssize_p
+    ELSE 0 END,
+	*
+	from nodes_progress
+)
+SELECT
+	database_id, db_name,
+	replication_endpoint_url,
+	catchup_progress = CASE WHEN internal_state_desc IS NOT NULL -- Check for active seeding
+                           THEN 'Seeding'
+                     WHEN logprogresssize_p > 0
+                           THEN CONVERT(VARCHAR(100), CONVERT(NUMERIC(20,2),log_progress_size)) + '%'
+                     ELSE 'Select the Primary Node' END,
+	is_local,
+	is_primary_replica,
+	seeding_state,
+	synchronization_health_desc,
+	synchronization_state_desc,
+	secondary_lag_seconds,
+	suspend_reason_desc,
+	log_send_queue_size,
+	log_send_rate,
+	redo_queue_size,
+	redo_rate,
+	recovery_lsn,
+	truncation_lsn,
+	last_sent_lsn,
+	last_received_lsn,
+	last_received_time
+	last_hardening_lsn,
+	last_hardened_time,
+	last_redone_lsn,
+	last_redone_time,
+	end_of_log_lsn,
+	last_commit_lsn,
+	minlsn, maxlsn
+	FROM nodes_progress_size;
+GO
+
+CREATE OR ALTER VIEW
+qpi.db_nodes
+AS
+SELECT * FROM qpi.nodes WHERE database_id = DB_ID();
+GO
+
 ---------------------------------------------------------------------------------------------------
 --				Performance counters
 ---------------------------------------------------------------------------------------------------
@@ -1188,11 +1267,12 @@ and B2.type = 1073939712 -- PERF_LARGE_RAW_BASE
 SELECT	pc.name, pc.value, pc.type,
 		instance_name =
 
-
-
-			pc.instance_name
-
+			ISNULL(d.name, pc.instance_name)
 FROM perf_counter_types pc
+
+left join sys.databases d
+			on pc.instance_name = d.physical_database_name
+
 GO
 
 CREATE OR ALTER PROCEDURE qpi.snapshot_perf_counters
@@ -1218,5 +1298,6 @@ VALUES (Source.name,Source.value,Source.object,instance_name,Source.type)
 ;
 END
 GO
+
 SET QUOTED_IDENTIFIER ON;
 GO

@@ -1317,5 +1317,7 @@ VALUES (Source.name,Source.value,Source.object,instance_name,Source.type)
 ; 
 END
 GO
+
 SET QUOTED_IDENTIFIER ON;
 GO
+

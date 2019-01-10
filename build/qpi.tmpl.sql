@@ -981,9 +981,16 @@ AS RETURN (
 	SELECT * FROM qpi.fn_file_stats(DB_ID(), null, @milestone)
 );
 GO
+
+CREATE VIEW qpi.file_stats_snapshots
+AS
+SELECT DISTINCT snapshot_name = title, start_time, end_time
+FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
+GO
+
 #endif
 
-#ifndef MI
+#ifndef AZURE
 CREATE FUNCTION qpi.memory_mb()
 RETURNS int AS
 BEGIN
@@ -1002,12 +1009,7 @@ END
 GO
 #endif
 
-CREATE VIEW qpi.file_stats_snapshots
-AS
-SELECT DISTINCT snapshot_name = title, start_time, end_time
-FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
-GO
-
+#ifndef DB
 CREATE OR ALTER VIEW qpi.volumes
 AS
 SELECT	volume_mount_point,
@@ -1018,7 +1020,9 @@ FROM sys.master_files AS f
 CROSS APPLY sys.dm_os_volume_stats(f.database_id, f.file_id)
 GROUP BY volume_mount_point;
 GO
+#endif
 
+#ifndef DB
 CREATE VIEW qpi.sys_info
 AS
 SELECT cpu_count,
@@ -1028,6 +1032,9 @@ SELECT cpu_count,
 	physical_cpu_count = cpu_count/hyperthread_ratio
 FROM sys.dm_os_sys_info
 GO
+#endif
+
+#ifndef DB
 CREATE VIEW qpi.dm_cpu_usage
 AS
 SELECT
@@ -1048,7 +1055,8 @@ SELECT
 		 ) as x(record)
 		 ) as y
 GO      
-   
+#endif
+
 CREATE VIEW qpi.dm_mem_plan_cache_info
 AS
 SELECT  cached_object = objtype,
@@ -1062,14 +1070,18 @@ CREATE VIEW qpi.dm_mem_usage
 AS
 SELECT memory = REPLACE(type, 'MEMORYCLERK_', "") 
      , mem_gb = sum(pages_kb)/1024/1024
+#ifndef DB
 	 , mem_perc = ROUND(sum(pages_kb)/1024.0/ qpi.memory_mb() ,2)
+#endif
    FROM sys.dm_os_memory_clerks
    GROUP BY type
    HAVING sum(pages_kb) /1024 /1024 > 0
+#ifndef DB
 UNION ALL
 	SELECT memory = '_Total',
 		mem_gb = qpi.memory_mb() /1024,
 		mem_perc = 1;
+#endif
 GO
 -- www.mssqltips.com/sqlservertip/2393/determine-sql-server-memory-use-by-database-and-object/
 CREATE VIEW qpi.dm_db_mem_usage

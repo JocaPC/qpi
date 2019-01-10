@@ -1,4 +1,10 @@
+#ifndef SQL2016
 #define QUERYTEXT(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text)
+#define QUERYLIST(query_id,context_settings_id) string_agg(concat(query_id,'(', context_settings_id,')'),',')
+#else
+#define QUERYTEXT(query_sql_text) SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))
+#define QUERYLIST(query_id,context_settings_id) count(query_id)
+#endif
 #define QUERYPARAM(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), "")
 --------------------------------------------------------------------------------
 --	SQL Server & Azure SQL Managed Instance - Query Performance Insights
@@ -106,12 +112,7 @@ GO
 
 CREATE OR ALTER VIEW qpi.query_texts
 as
-select	q.text, q.params, q.query_text_id,
-#ifndef SQL2016
-		 queries = string_agg(concat(query_id,'(', context_settings_id,')'),',')
-#else
-		 queries = count(query_id)
-#endif
+select	q.text, q.params, q.query_text_id, queries = QUERYLIST(query_id,context_settings_id)
 from qpi.queries q
 group by q.text, q.params, q.query_text_id
 GO

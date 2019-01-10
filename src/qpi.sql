@@ -1,5 +1,3 @@
-
-
 --------------------------------------------------------------------------------
 --	SQL Server & Azure SQL Managed Instance - Query Performance Insights
 --	Author: Jovan Popovic
@@ -37,6 +35,7 @@ AS BEGIN RETURN DATEADD(DAY, - ((@time /10000) %100),
 						)
 					) END;
 GO
+
 CREATE OR ALTER FUNCTION qpi.decode_options(@options int)
 RETURNS TABLE
 RETURN (
@@ -106,9 +105,7 @@ GO
 
 CREATE OR ALTER VIEW qpi.query_texts
 as
-select	q.text, q.params, q.query_text_id,
-
-		 queries = string_agg(concat(query_id,'(', context_settings_id,')'),',')
+select	q.text, q.params, q.query_text_id, queries =  string_agg(concat(query_id,'(', context_settings_id,')'),',')
 from qpi.queries q
 group by q.text, q.params, q.query_text_id
 GO
@@ -979,6 +976,13 @@ AS RETURN (
 );
 GO
 
+CREATE VIEW qpi.file_stats_snapshots
+AS
+SELECT DISTINCT snapshot_name = title, start_time, end_time
+FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
+GO
+
+
 
 
 CREATE FUNCTION qpi.memory_mb()
@@ -990,12 +994,6 @@ BEGIN
 	SELECT size_mb = available_page_file_kb / 1024 FROM [master].[sys].[dm_os_sys_memory]) as m);
 END
 GO
-CREATE VIEW qpi.file_stats_snapshots
-AS
-SELECT DISTINCT snapshot_name = title, start_time, end_time
-FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
-GO
-
 CREATE OR ALTER VIEW qpi.volumes
 AS
 SELECT	volume_mount_point,
@@ -1007,6 +1005,8 @@ CROSS APPLY sys.dm_os_volume_stats(f.database_id, f.file_id)
 GROUP BY volume_mount_point;
 GO
 
+
+
 CREATE VIEW qpi.sys_info
 AS
 SELECT cpu_count,
@@ -1016,6 +1016,9 @@ SELECT cpu_count,
 	physical_cpu_count = cpu_count/hyperthread_ratio
 FROM sys.dm_os_sys_info
 GO
+
+
+
 CREATE VIEW qpi.dm_cpu_usage
 AS
 SELECT
@@ -1036,6 +1039,7 @@ SELECT
 		 ) as x(record)
 		 ) as y
 GO
+
 
 CREATE VIEW qpi.dm_mem_plan_cache_info
 AS
@@ -1218,6 +1222,5 @@ VALUES (Source.name,Source.value,Source.object,instance_name,Source.type)
 ;
 END
 GO
-
 SET QUOTED_IDENTIFIER ON;
 GO

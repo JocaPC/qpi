@@ -1,16 +1,13 @@
 git checkout master
-.\azmi.bat
-git commit
-
+.\mcpp.exe -k -P -o ..\src\qpi.sql -D AZURE -D MI qpi.tmpl.sql
+git commit -a -m "New version"
 git checkout azure-db
-.\azdb.bat
-git commit
-
+.\mcpp.exe -k -P -o ..\src\qpi.sql -D AZURE -D DB qpi.tmpl.sql
+git commit -a -m "New version"
 git checkout sql2017
-.\sql2017.bat
-git commit
-
+.\mcpp.exe -k -P -o ..\src\qpi.sql -D SQL2017 qpi.tmpl.sql
+git commit -a -m "New version"
 git checkout sql2016
-.\sql2016.bat
-git commit
+.\mcpp.exe -k -P -o ..\src\qpi.sql -D SQL2016 qpi.tmpl.sql
+git commit -a -m "New version"
 

@@ -63,6 +63,7 @@ You can download the source and run it in your database. Choose the version base
 - [Azure SQL Managed Instance](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.sql)
 - [SQL Server 2017](https://raw.githubusercontent.com/JocaPC/qpi/sql2017/src/qpi.sql)
 - [SQL Server 2016](https://raw.githubusercontent.com/JocaPC/qpi/sql2016/src/qpi.sql)
+ 
  All functions, views, and tables are placed in `qpi` schema in your database. You can also remove all functions and views in `qpi` schema using the [cleaning script](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.clean.sql)
 
 > Many views depends on Query Store so make sure that Query store is running on your SQL Server.

@@ -1,10 +1,10 @@
 # Query Performance Insights
 
-Query Performance Insights (QPI) is a collection of useful scripts that enable you find what is happening with your Azure SQL Database (most of the scripts would work on SQL Server 2016+). It is a set of views and functions that wrap Query Store and Dynamic Management Views.
+Query Performance Insights (QPI) is a collection of useful scripts that enable you find what is happening with your Azure SQL Database Managed Instance (most of the scripts would work on SQL Server 2016+). It is a set of views and functions that wrap Query Store and Dynamic Management Views. See how to install the proper version for your SQL Server in [Installation](#installation) section.
 
 ## Why I need this kind of library?
 
-SQL Server/Azure SQL Database provide a lot of views that we can use to analyze query performance (dynamic management views and Query Store views). However, sometime it is hard to see what is happening in the database engine. There are DMVs and Query Store, but when we need to get the answer to the simple questions such as "Did query performance changed after I added an index?" or "How many IOPS do we use?", we need to dig into Query Store schema, think about every single report, or search for some useful query. Also, for most of the views, you woudl need to read several articles to understand how to interpret the results.
+SQL Server/Azure SQL Database provide a lot of views that we can use to analyze query performance (dynamic management views and Query Store views). However, sometime it is hard to see what is happening in the database engine. There are DMVs and Query Store, but when we need to get the answer to the simple questions such as "Did query performance changed after I added an index?" or "How many IOPS do we use?", we need to dig into Query Store schema, think about every single report, or search for some useful query. Also, for most of the views, you would need to read several articles to understand how to interpret the results.
 
 This is the reason why I have collected the most useful queries that find information from underlying system views, and wrapped them in a set of useful views. Some usefull resources that I have used:
 
@@ -59,6 +59,10 @@ QPI library enables you to find performance of underlying file system - find mor
 
 ## Installation
 QPI library is just a set of views, functions, and utility tables that you can install on your SQL Server or Azure SQL instance. Currently, it supports SQL Server 2016+ and Azure SQL Database.
-You can download the [source](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.sql) and run it in your database. All functions, views, and tables are placed in `qpi` schema in your database. You can also remove all funcitons and views in `qpi` schema using [cleaning script](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.clean.sql)
+You can download the source and run it in your database. Choose the version based on your SQL Server version:
+- [Azure SQL Managed Instance](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.sql)
+- [SQL Server 2017](https://raw.githubusercontent.com/JocaPC/qpi/sql2017/src/qpi.sql)
+- [SQL Server 2016](https://raw.githubusercontent.com/JocaPC/qpi/sql2016/src/qpi.sql)
+ All functions, views, and tables are placed in `qpi` schema in your database. You can also remove all functions and views in `qpi` schema using the [cleaning script](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.clean.sql)
 
 > Many views depends on Query Store so make sure that Query store is running on your SQL Server.

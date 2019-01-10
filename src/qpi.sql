@@ -1,5 +1,3 @@
-
-
 --------------------------------------------------------------------------------
 --	SQL Server & Azure SQL Managed Instance - Query Performance Insights
 --	Author: Jovan Popovic
@@ -37,6 +35,7 @@ AS BEGIN RETURN DATEADD(DAY, - ((@time /10000) %100),
 						)
 					) END;
 GO
+
 CREATE OR ALTER FUNCTION qpi.decode_options(@options int)
 RETURNS TABLE
 RETURN (
@@ -106,9 +105,7 @@ GO
 
 CREATE OR ALTER VIEW qpi.query_texts
 as
-select	q.text, q.params, q.query_text_id,
-
-		 queries = string_agg(concat(query_id,'(', context_settings_id,')'),',')
+select	q.text, q.params, q.query_text_id, queries =  string_agg(concat(query_id,'(', context_settings_id,')'),',')
 from qpi.queries q
 group by q.text, q.params, q.query_text_id
 GO

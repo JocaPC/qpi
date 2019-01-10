@@ -1,4 +1,10 @@
+#ifndef SQL2016
 #define QUERYTEXT(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text)
+#define QUERYLIST(query_id,context_settings_id) string_agg(concat(query_id,'(', context_settings_id,')'),',')
+#else
+#define QUERYTEXT(query_sql_text) SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))
+#define QUERYLIST(query_id,context_settings_id) count(query_id)
+#endif
 #define QUERYPARAM(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), "")
 --------------------------------------------------------------------------------
 --	SQL Server & Azure SQL Managed Instance - Query Performance Insights
@@ -37,6 +43,7 @@ AS BEGIN RETURN DATEADD(DAY, - ((@time /10000) %100),
 						)						
 					) END;
 GO
+
 CREATE OR ALTER FUNCTION qpi.decode_options(@options int)
 RETURNS TABLE
 RETURN (
@@ -106,12 +113,7 @@ GO
 
 CREATE OR ALTER VIEW qpi.query_texts
 as
-select	q.text, q.params, q.query_text_id,
-#ifndef SQL2016
-		 queries = string_agg(concat(query_id,'(', context_settings_id,')'),',')
-#else
-		 queries = count(query_id)
-#endif
+select	q.text, q.params, q.query_text_id, queries = QUERYLIST(query_id,context_settings_id)
 from qpi.queries q
 group by q.text, q.params, q.query_text_id
 GO
@@ -981,9 +983,16 @@ AS RETURN (
 	SELECT * FROM qpi.fn_file_stats(DB_ID(), null, @milestone)
 );
 GO
+
+CREATE VIEW qpi.file_stats_snapshots
+AS
+SELECT DISTINCT snapshot_name = title, start_time, end_time
+FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
+GO
+
 #endif
 
-#ifndef MI
+#ifndef AZURE
 CREATE FUNCTION qpi.memory_mb()
 RETURNS int AS
 BEGIN
@@ -1002,12 +1011,7 @@ END
 GO
 #endif
 
-CREATE VIEW qpi.file_stats_snapshots
-AS
-SELECT DISTINCT snapshot_name = title, start_time, end_time
-FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
-GO
-
+#ifndef DB
 CREATE OR ALTER VIEW qpi.volumes
 AS
 SELECT	volume_mount_point,
@@ -1018,7 +1022,9 @@ FROM sys.master_files AS f
 CROSS APPLY sys.dm_os_volume_stats(f.database_id, f.file_id)
 GROUP BY volume_mount_point;
 GO
+#endif
 
+#ifndef DB
 CREATE VIEW qpi.sys_info
 AS
 SELECT cpu_count,
@@ -1028,6 +1034,9 @@ SELECT cpu_count,
 	physical_cpu_count = cpu_count/hyperthread_ratio
 FROM sys.dm_os_sys_info
 GO
+#endif
+
+#ifndef DB
 CREATE VIEW qpi.dm_cpu_usage
 AS
 SELECT
@@ -1048,7 +1057,8 @@ SELECT
 		 ) as x(record)
 		 ) as y
 GO      
-   
+#endif
+
 CREATE VIEW qpi.dm_mem_plan_cache_info
 AS
 SELECT  cached_object = objtype,
@@ -1317,7 +1327,5 @@ VALUES (Source.name,Source.value,Source.object,instance_name,Source.type)
 ; 
 END
 GO
-
 SET QUOTED_IDENTIFIER ON;
 GO
-

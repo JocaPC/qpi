@@ -1292,13 +1292,13 @@ and B2.type = 1073939712 -- PERF_LARGE_RAW_BASE
 )
 SELECT	pc.name, pc.value, pc.type,
 		instance_name =
-#ifdef MI
+#ifdef AZURE
 			ISNULL(d.name, pc.instance_name)
 #else
 			pc.instance_name
 #endif
 FROM perf_counter_types pc
-#ifdef MI
+#ifdef AZURE
 left join sys.databases d
 			on pc.instance_name = d.physical_database_name
 #endif

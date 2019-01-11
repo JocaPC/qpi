@@ -1279,6 +1279,13 @@ left join sys.databases d
 
 GO
 
+CREATE OR ALTER VIEW
+qpi.db_perf_counters
+AS
+SELECT * FROM qpi.perf_counters
+WHERE instance_name = db_name()
+GO
+
 CREATE OR ALTER PROCEDURE qpi.snapshot_perf_counters
 AS BEGIN
 MERGE qpi.dm_os_performance_counters_snapshot AS Target

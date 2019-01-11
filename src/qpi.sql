@@ -935,11 +935,12 @@ and B2.type = 1073939712 -- PERF_LARGE_RAW_BASE
 SELECT	pc.name, pc.value, pc.type,
 		instance_name =
 
-
-
-			pc.instance_name
-
+			ISNULL(d.name, pc.instance_name)
 FROM perf_counter_types pc
+
+left join sys.databases d
+			on pc.instance_name = d.physical_database_name
+
 GO
 
 CREATE OR ALTER PROCEDURE qpi.snapshot_perf_counters

@@ -996,10 +996,12 @@ GO
 CREATE FUNCTION qpi.memory_mb()
 RETURNS int AS
 BEGIN
-	RETURN (SELECT size_mb = MIN(CAST(size_mb AS INT)) FROM (SELECT size_mb = maximum FROM [master].[sys].[configurations]
-	WHERE NAME = 'Max server memory (MB)'
-	UNION ALL
-	SELECT size_mb = available_page_file_kb / 1024 FROM [master].[sys].[dm_os_sys_memory]) as m);
+	RETURN (SELECT size_mb = MIN(CAST(size_mb AS INT)) 
+			FROM (
+				SELECT size_mb = maximum FROM [master].[sys].[configurations] WHERE NAME = 'Max server memory (MB)'
+				UNION ALL
+				SELECT size_mb = physical_memory_kb/1024./1024. FROM sys.dm_os_sys_info
+			) as m)
 END
 GO
 #else
@@ -1072,13 +1074,13 @@ CREATE VIEW qpi.dm_mem_usage
 AS
 SELECT memory = REPLACE(type, 'MEMORYCLERK_', "") 
      , mem_gb = sum(pages_kb)/1024/1024
-	 , mem_perc = ROUND(sum(pages_kb)/1024.0/ qpi.memory_mb() ,2)
+	 , mem_perc = ROUND(sum(pages_kb)/1024.0/ qpi.memory_mb() ,1)
    FROM sys.dm_os_memory_clerks
    GROUP BY type
    HAVING sum(pages_kb) /1024 /1024 > 0
 UNION ALL
 	SELECT memory = '_Total',
-		mem_gb = qpi.memory_mb() /1024,
+		mem_gb = ROUND(qpi.memory_mb() /1024., 1),
 		mem_perc = 1;
 GO
 -- www.mssqltips.com/sqlservertip/2393/determine-sql-server-memory-use-by-database-and-object/

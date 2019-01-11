@@ -1006,7 +1006,7 @@ GO
 CREATE VIEW qpi.sys_info
 AS
 SELECT cpu_count,
-	memory_gb = qpi.memory_mb() /1024.,
+	memory_gb = ROUND(qpi.memory_mb() /1024.,1),
 	sqlserver_start_time,
 	hyperthread_ratio,
 	physical_cpu_count = cpu_count/hyperthread_ratio

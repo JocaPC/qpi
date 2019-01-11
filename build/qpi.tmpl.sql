@@ -1000,7 +1000,7 @@ BEGIN
 			FROM (
 				SELECT size_mb = maximum FROM [master].[sys].[configurations] WHERE NAME = 'Max server memory (MB)'
 				UNION ALL
-				SELECT size_mb = physical_memory_kb/1024./1024. FROM sys.dm_os_sys_info
+				SELECT size_mb = physical_memory_kb/1024. FROM sys.dm_os_sys_info
 			) as m)
 END
 GO
@@ -1030,7 +1030,7 @@ GO
 CREATE VIEW qpi.sys_info
 AS
 SELECT cpu_count,
-	memory_gb = qpi.memory_mb() /1024.,
+	memory_gb = ROUND(qpi.memory_mb() /1024.,1),
 	sqlserver_start_time,
 	hyperthread_ratio,
 	physical_cpu_count = cpu_count/hyperthread_ratio

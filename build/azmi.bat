@@ -1,1 +1,0 @@
-.\mcpp.exe -k -P -o ..\src\qpi.sql -D AZURE -D MI qpi.tmpl.sql

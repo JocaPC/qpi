@@ -1,1 +1,0 @@
-.\mcpp.exe -k -P -o ..\src\qpi.sql -D SQL2017 qpi.tmpl.sql

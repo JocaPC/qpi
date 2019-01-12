@@ -1,3 +1,11 @@
+
+
+
+
+
+
+
+
 --------------------------------------------------------------------------------
 --	SQL Server & Azure SQL (Database & Instance) - Query Performance Insights
 --	Author: Jovan Popovic
@@ -86,7 +94,7 @@ return (
 GO
 CREATE OR ALTER VIEW qpi.queries
 as
-select	text =  IIF(LEFT(query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text) ,
+select	text =  SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text)) ,
 		params =  IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), "") ,
 		q.query_text_id, query_id, context_settings_id, q.query_hash
 from sys.query_store_query_text t
@@ -105,7 +113,7 @@ GO
 
 CREATE OR ALTER VIEW qpi.query_texts
 as
-select	q.text, q.params, q.query_text_id, queries =  string_agg(concat(query_id,'(', context_settings_id,')'),',')
+select	q.text, q.params, q.query_text_id, queries =  count(query_id)
 from qpi.queries q
 group by q.text, q.params, q.query_text_id
 GO
@@ -114,7 +122,7 @@ GO
 CREATE OR ALTER VIEW qpi.dm_queries
 AS
 SELECT
-		text =   IIF(LEFT(text,1) = '(', TRIM(')' FROM SUBSTRING( text, (PATINDEX( '%)[^,]%', text))+1, LEN(text))), text) ,
+		text =   SUBSTRING( text, (PATINDEX( '%)[^,]%', text))+1, LEN(text)) ,
 		params =  IIF(LEFT(text,1) = '(', SUBSTRING( text, 0, (PATINDEX( '%)[^,]%', text))+1), "") ,
 		execution_type_desc = status COLLATE Latin1_General_CS_AS,
 		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
@@ -184,7 +192,7 @@ GO
 CREATE   VIEW qpi.dm_query_stats
 AS
 SELECT
-		text =   IIF(LEFT(t.text,1) = '(', TRIM(')' FROM SUBSTRING( t.text, (PATINDEX( '%)[^,]%', t.text))+1, LEN(t.text))), t.text) ,
+		text =   SUBSTRING( t.text, (PATINDEX( '%)[^,]%', t.text))+1, LEN(t.text)) ,
 		params =  IIF(LEFT(t.text,1) = '(', SUBSTRING( t.text, 0, (PATINDEX( '%)[^,]%', t.text))+1), "") ,
 		execution_type_desc = status COLLATE Latin1_General_CS_AS,
 		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
@@ -537,7 +545,7 @@ function qpi.query_plan_wait_stats_as_of(@date datetime2)
 	returns table
 as return (
 select
-		text =   IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
+		text =   SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text)) ,
 		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), "") ,
 		category = ws.wait_category_desc, wait_time_s = ws.avg_query_wait_time_ms /1000.0,
 		q.query_id, ws.plan_id, ws.execution_type_desc,
@@ -588,7 +596,7 @@ CREATE OR ALTER  function qpi.query_plan_stats_as_of(@date datetime2)
 returns table
 as return (
 select	t.query_text_id, q.query_id,
-		text =   IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
+		text =   SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text)) ,
 		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), "") ,
 		rs.plan_id,
 		rs.execution_type_desc,
@@ -634,7 +642,7 @@ CREATE   function qpi.query_plan_stats_ex_as_of(@date datetime2)
 returns table
 as return (
 select	q.query_id,
-		text =   IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
+		text =   SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text)) ,
 		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), "") ,
 		t.query_text_id, rsi.start_time, rsi.end_time,
 		rs.*, q.query_hash,
@@ -676,7 +684,7 @@ SELECT	qps.query_id, execution_type_desc,
 FROM qpi.query_plan_stats_as_of(@date) qps
 GROUP BY query_id, execution_type_desc
 )
-SELECT  text =   IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
+SELECT  text =   SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text)) ,
 		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), "") ,
 		qs.*,
 		t.query_text_id
@@ -981,15 +989,21 @@ AS
 SELECT DISTINCT snapshot_name = title, start_time, end_time
 FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
 GO
+
+
+
+
 CREATE FUNCTION qpi.memory_mb()
 RETURNS int AS
 BEGIN
- RETURN (SELECT process_memory_limit_mb FROM sys.dm_os_job_object);
+	RETURN (SELECT size_mb = MIN(CAST(size_mb AS INT))
+			FROM (
+				SELECT size_mb = maximum FROM [master].[sys].[configurations] WHERE NAME = 'Max server memory (MB)'
+				UNION ALL
+				SELECT size_mb = physical_memory_kb/1024. FROM sys.dm_os_sys_info
+			) as m)
 END
 GO
-
-
-
 CREATE OR ALTER VIEW qpi.volumes
 AS
 SELECT	volume_mount_point,
@@ -1083,104 +1097,9 @@ db_buffer_pages * 100.0 / (SELECT top 1 cntr_value
 )
 FROM src
 GO
-
-CREATE OR ALTER VIEW
-qpi.dm_recommendations
-AS
-SELECT	name, reason, score,
-		[state] = JSON_VALUE(state, '$.currentValue'),
-        script = JSON_VALUE(details, '$.implementationDetails.script'),
-        details
-FROM sys.dm_db_tuning_recommendations;
-GO
-
-
 ---------------------------------------------------------------------------------------------------------
 --			High availability
 ---------------------------------------------------------------------------------------------------------
-
-CREATE OR ALTER VIEW
-qpi.nodes
-AS
-with nodes as (
-	select db_name = DB_NAME(database_id),
-		minlsn = CONVERT(NUMERIC(38,0), ISNULL(truncation_lsn, 0)),
-		maxlsn = CONVERT(NUMERIC(38,0), ISNULL(last_hardened_lsn, 0)),
-		seeding_state =
-			CASE WHEN seedStats.internal_state_desc NOT IN ('Success', 'Failed') OR synchronization_health = 1
-						THEN 'Warning' ELSE
-                     (CASE WHEN synchronization_state = 0 OR synchronization_health != 2
-							THEN 'ERROR' ELSE 'OK' END)
-			END,
-		replication_endpoint_url =
-		CASE WHEN replication_endpoint_url IS NULL AND (synchronization_state = 1  OR fccs.partner_server IS NOT NULL)
-			THEN fccs.partner_server + ' - ' + fccs.partner_database -- Geo replicas will be in Synchronizing state
-        ELSE replication_endpoint_url END,
-		repl_states.* , seedStats.internal_state_desc, frs.fabric_replica_role
-		from sys.dm_hadr_database_replica_states repl_states
-              LEFT JOIN sys.dm_hadr_fabric_replica_states frs
-                     ON repl_states.replica_id = frs.replica_id
-              LEFT OUTER JOIN sys.dm_hadr_physical_seeding_stats seedStats
-                     ON seedStats.remote_machine_name = replication_endpoint_url
-                     AND (seedStats.local_database_name = repl_states.group_id OR seedStats.local_database_name = DB_NAME(database_id))
-                     AND seedStats.internal_state_desc NOT IN ('Success', 'Failed')
-              LEFT OUTER JOIN sys.dm_hadr_fabric_continuous_copy_status fccs
-                     ON repl_states.group_database_id = fccs.copy_guid
-),
-nodes_progress AS (
-SELECT *, logprogresssize_p =
-                     CASE WHEN maxlsn - minlsn != 0 THEN maxlsn - minlsn
-                           ELSE 0 END
-FROM nodes
-),
-nodes_progress_size as (
-select
-	log_progress_size = CASE WHEN last_hardened_lsn > minlsn AND logprogresssize_p > 0
-				THEN (CONVERT(NUMERIC(38,0), last_hardened_lsn) - minlsn)*100.0/logprogresssize_p
-    ELSE 0 END,
-	*
-	from nodes_progress
-)
-SELECT
-	database_id, db_name,
-	replication_endpoint_url,
-	catchup_progress = CASE WHEN internal_state_desc IS NOT NULL -- Check for active seeding
-                           THEN 'Seeding'
-                     WHEN logprogresssize_p > 0
-                           THEN CONVERT(VARCHAR(100), CONVERT(NUMERIC(20,2),log_progress_size)) + '%'
-                     ELSE 'Select the Primary Node' END,
-	is_local,
-	is_primary_replica,
-	seeding_state,
-	synchronization_health_desc,
-	synchronization_state_desc,
-	secondary_lag_seconds,
-	suspend_reason_desc,
-	log_send_queue_size,
-	log_send_rate,
-	redo_queue_size,
-	redo_rate,
-	recovery_lsn,
-	truncation_lsn,
-	last_sent_lsn,
-	last_received_lsn,
-	last_received_time
-	last_hardening_lsn,
-	last_hardened_time,
-	last_redone_lsn,
-	last_redone_time,
-	end_of_log_lsn,
-	last_commit_lsn,
-	minlsn, maxlsn
-	FROM nodes_progress_size;
-GO
-
-CREATE OR ALTER VIEW
-qpi.db_nodes
-AS
-SELECT * FROM qpi.nodes WHERE database_id = DB_ID();
-GO
-
 ---------------------------------------------------------------------------------------------------
 --				Performance counters
 ---------------------------------------------------------------------------------------------------
@@ -1271,12 +1190,11 @@ and B2.type = 1073939712 -- PERF_LARGE_RAW_BASE
 SELECT	pc.name, pc.value, pc.type,
 		instance_name =
 
-			ISNULL(d.name, pc.instance_name)
+
+
+			pc.instance_name
+
 FROM perf_counter_types pc
-
-left join sys.databases d
-			on pc.instance_name = d.physical_database_name
-
 GO
 
 CREATE OR ALTER VIEW

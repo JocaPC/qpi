@@ -7,10 +7,10 @@
 #endif
 #define QUERYPARAM(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), "")
 --------------------------------------------------------------------------------
---	SQL Server & Azure SQL Managed Instance - Query Performance Insights
+--	SQL Server & Azure SQL (Database & Instance) - Query Performance Insights
 --	Author: Jovan Popovic
 --------------------------------------------------------------------------------
-SET QUOTED_IDENTIFIER OFF; -- Because I like to use "" as string literal
+SET QUOTED_IDENTIFIER OFF; -- Because I use "" as a string literal
 GO
 
 CREATE SCHEMA qpi;

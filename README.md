@@ -8,7 +8,7 @@ SQL Server/Azure SQL Database provide a lot of views that we can use to analyze 
 
 This is the reason why I have collected the most useful queries that find information from underlying system views, and wrapped them in a set of useful views. Some usefull resources that I have used:
 
- - Paul Randal [Wait statistics library](https://www.sqlskills.com/help/waits/), [Wait statistics - tell me where it hurts](https://www.sqlskills.com/blogs/paul/wait-statistics-or-please-tell-me-where-it-hurts/), [How to examine IO subsystme latencies](https://www.sqlskills.com/blogs/paul/how-to-examine-io-subsystem-latencies-from-within-sql-server/)
+ - Paul Randal [Wait statistics library](https://www.sqlskills.com/help/waits/), [Wait statistics - tell me where it hurts](https://www.sqlskills.com/blogs/paul/wait-statistics-or-please-tell-me-where-it-hurts/), [How to examine IO subsystem latencies](https://www.sqlskills.com/blogs/paul/how-to-examine-io-subsystem-latencies-from-within-sql-server/)
  - Erin Stellato [What Virtual Filestats Do, and Do Not, Tell You About I/O Latency](https://sqlperformance.com/2013/10/t-sql-queries/io-latency).
  - Aaron Bertrand [Determine system memory](https://www.mssqltips.com/sqlservertip/2393/determine-sql-server-memory-use-by-database-and-object/)
  - Dimitri Furman & [SqlCat team](https://blogs.msdn.microsoft.com/sqlcat/) blog posts
@@ -61,10 +61,17 @@ QPI library enables you to find performance of underlying file system - find mor
 QPI library is just a set of views, functions, and utility tables that you can install on your SQL Server or Azure SQL instance. Currently, it supports SQL Server 2016+ and Azure SQL Database.
 You can download the source and run it in your database. Choose the version based on your SQL Server version:
 - [Azure SQL Managed Instance](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.sql)
-- [Azure SQL Database](https://raw.githubusercontent.com/JocaPC/qpi/azure-db/src/qpi.sql)
-- [SQL Server 2017](https://raw.githubusercontent.com/JocaPC/qpi/sql2017/src/qpi.sql)
-- [SQL Server 2016](https://raw.githubusercontent.com/JocaPC/qpi/sql2016/src/qpi.sql)
+- [Azure SQL Database](https://raw.githubusercontent.com/JocaPC/qpi/master/azure-db/qpi.sql)
+- [SQL Server 2017](https://raw.githubusercontent.com/JocaPC/qpi/master/sql2017/qpi.sql)
+- [SQL Server 2016](https://raw.githubusercontent.com/JocaPC/qpi/master/sql2016/qpi.sql)
  
- All functions, views, and tables are placed in `qpi` schema in your database. You can also remove all functions and views in `qpi` schema using the [cleaning script](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.clean.sql)
+ All functions, views, and tables are placed in `qpi` schema in your database. You can also remove all functions and views in `qpi` schema using the [cleaning script](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.clean.sql).
+
+ If you are using SQL Agent on SQL Server and Azure SQL Managed you can create a job that periodically snapshot the file and wait statistics using the [QPI Agent job](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.collection.agent.sql).
+
+```
+
+DECLARE @database sysname = <'put the name of the database where QPI procedures are placed'>;
+```
 
 > Many views depends on Query Store so make sure that Query store is running on your SQL Server.

@@ -61,9 +61,9 @@ QPI library enables you to find performance of underlying file system - find mor
 QPI library is just a set of views, functions, and utility tables that you can install on your SQL Server or Azure SQL instance. Currently, it supports SQL Server 2016+ and Azure SQL Database.
 You can download the source and run it in your database. Choose the version based on your SQL Server version:
 - [Azure SQL Managed Instance](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.sql)
-- [Azure SQL Database](https://raw.githubusercontent.com/JocaPC/qpi/master/azure-db/qpi.sql)
-- [SQL Server 2017](https://raw.githubusercontent.com/JocaPC/qpi/master/sql2017/qpi.sql)
-- [SQL Server 2016](https://raw.githubusercontent.com/JocaPC/qpi/master/sql2016/qpi.sql)
+- [Azure SQL Database](https://raw.githubusercontent.com/JocaPC/qpi/master/build/azure-db/qpi.sql)
+- [SQL Server 2017](https://raw.githubusercontent.com/JocaPC/qpi/master/build/sql2017/qpi.sql)
+- [SQL Server 2016](https://raw.githubusercontent.com/JocaPC/qpi/master/build/sql2016/qpi.sql)
  
  All functions, views, and tables are placed in `qpi` schema in your database.
 

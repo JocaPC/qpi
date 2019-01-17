@@ -1027,19 +1027,26 @@ GO
 #endif
 
 #ifndef DB
-CREATE VIEW qpi.sys_info
+CREATE OR ALTER VIEW qpi.sys_info
 AS
 SELECT cpu_count,
 	memory_gb = ROUND(qpi.memory_mb() /1024.,1),
 	sqlserver_start_time,
-	hyperthread_ratio,
 	physical_cpu_count = cpu_count/hyperthread_ratio
+#ifdef MI
+	, service_tier, hardware_generation, max_storage_gb
+#endif
 FROM sys.dm_os_sys_info
+#ifdef MI
+	, (select top 1 service_tier = sku, hardware_generation, max_storage_gb = reserved_storage_mb/1024 
+	from master.sys.server_resource_stats
+	where start_time > DATEADD(mi, -7, GETDATE())) as srs
+#endif
 GO
 #endif
 
 #ifndef DB
-CREATE VIEW qpi.dm_cpu_usage
+CREATE OR ALTER VIEW qpi.dm_cpu_usage
 AS
 SELECT
 	cpu_count,

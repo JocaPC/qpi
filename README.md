@@ -38,13 +38,16 @@ select * from qpi.sys_info; --  Get CPU & memory
 select * from qpi.volumes;  --  Get info about used and available space on the storage volumes
 
 exec qpi.snapshot_file_stats;   --  Take the file statistics baseline
+<run some query or workload>
 select * from qpi.file_stats;   --  Get the file stats
 
 exec qpi.snapshot_wait_stats;   --  Take the wait statistics baseline
+<run some query or workload>
 select * from qpi.wait_stats;   --  Get the wait stats
 
 exec qpi.snapshot_perf_counters;    -- Take the performance counter baseline (required for some perf counters)
-select * from qpi.perf_counters;    -- Get the perf counters
+<run some query or workload>
+select * from qpi.perf_counters;    -- Get the perf counter values
 ```
 
 See more details about the available views and functions in the [QPI API page](doc/Api.md). Find more information how to get the system info in [system information page](doc/SystemInfo.md).

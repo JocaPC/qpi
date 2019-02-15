@@ -261,9 +261,9 @@ CREATE TABLE qpi.dm_os_wait_stats_snapshot
 	[category_id] tinyint NULL,
 	[wait_type] [nvarchar](60) NOT NULL,
 	[waiting_tasks_count] [bigint] NOT NULL,
-	[wait_time_ms] [bigint] NOT NULL,
+	[wait_time_s] [bigint] NOT NULL,
 	[max_wait_time_ms] [bigint] NOT NULL,
-	[signal_wait_time_ms] [bigint] NOT NULL,
+	[signal_wait_time_s] [bigint] NOT NULL,
 	[title] [nvarchar](50),
 	start_time datetime2 GENERATED ALWAYS AS ROW START,
 	end_time datetime2 GENERATED ALWAYS AS ROW END,
@@ -389,9 +389,9 @@ UPDATE SET
 	Target.[category_id] = Source.[category_id],
 	Target.[wait_type] = Source.[wait_type],
 	Target.[waiting_tasks_count] = Source.[waiting_tasks_count],
-	Target.[wait_time_ms] = Source.[wait_time_ms],
+	Target.[wait_time_s] = Source.[wait_time_s],
 	Target.[max_wait_time_ms] = Source.[max_wait_time_ms],
-	Target.[signal_wait_time_ms] = Source.[signal_wait_time_ms],
+	Target.[signal_wait_time_s] = Source.[signal_wait_time_s],
 	Target.title = ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20))
 	-- IMPORTANT: DO NOT subtract Source-Target because the source always has a diff.
 	-- On each snapshot wait starts are reset to 0 - see DBCC SQLPERF('sys.dm_os_wait_stats', CLEAR);
@@ -401,12 +401,12 @@ WHEN NOT MATCHED BY TARGET THEN
 INSERT (category_id,
 	[wait_type],
 	[waiting_tasks_count],
-	[wait_time_ms],
+	[wait_time_s],
 	[max_wait_time_ms],
-	[signal_wait_time_ms], title)
+	[signal_wait_time_s], title)
 VALUES (Source.category_id, Source.[wait_type],Source.[waiting_tasks_count],
-		Source.[wait_time_ms], Source.[max_wait_time_ms],
-		Source.[signal_wait_time_ms],
+		Source.[wait_time_s], Source.[max_wait_time_ms],
+		Source.[signal_wait_time_s],
 		ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)));
 
 DBCC SQLPERF('sys.dm_os_wait_stats', CLEAR);
@@ -420,10 +420,10 @@ as return (
 select
 			category = c.category,
 			wait_type,
-			wait_time_s = wait_time_ms /1000,
-			avg_wait_time = wait_time_ms / DATEDIFF(ms, start_time, GETUTCDATE()),
-			signal_wait_time_s = signal_wait_time_ms /1000,
-			avg_signal_wait_time = signal_wait_time_ms / DATEDIFF(ms, start_time, GETUTCDATE()),
+			wait_time_s = wait_time_s,
+			avg_wait_time = wait_time_s / DATEDIFF(s, start_time, GETUTCDATE()),
+			signal_wait_time_s = signal_wait_time_s,
+			avg_signal_wait_time = signal_wait_time_s / DATEDIFF(s, start_time, GETUTCDATE()),
 			max_wait_time_s = max_wait_time_ms /1000,
 			category_id,
 			snapshot_time = start_time
@@ -435,12 +435,13 @@ go
 CREATE
 VIEW qpi.wait_stats
 AS SELECT
-	category_id = cid.category_id,
+	category = c.category,
 	wait_type = [wait_type],
 	[waiting_tasks_count],
-	[wait_time_ms],
+	[wait_time_s] = [wait_time_ms] / 1000,
 	[max_wait_time_ms],
-	[signal_wait_time_ms],
+	[signal_wait_time_s] = [signal_wait_time_ms] / 1000,
+	category_id = cid.category_id,
 	info = 'www.sqlskills.com/help/waits/' + [wait_type]
 	FROM sys.dm_os_wait_stats
 		cross apply qpi.__wait_stats_category_id(wait_type) as cid
@@ -534,7 +535,7 @@ AS SELECT
         )
 	and waiting_tasks_count > 0
 	and [wait_time_ms] > 1000
-	and [max_wait_time_ms] > 10
+	and [max_wait_time_ms] > 50
 
 GO
 

@@ -369,16 +369,72 @@ CREATE OR ALTER  PROCEDURE qpi.snapshot_wait_stats @title nvarchar(200) = NULL
 AS BEGIN
 MERGE qpi.dm_os_wait_stats_snapshot AS Target
 USING (
-	SELECT
-	category_id = c.category_id,
-	wait_type = [wait_type] COLLATE Latin1_General_100_BIN2,
+	SELECT *
+	FROM qpi.wait_stats
+	) AS Source
+ON (Target.wait_type  COLLATE Latin1_General_100_BIN2 = Source.wait_type COLLATE Latin1_General_100_BIN2)
+WHEN MATCHED THEN
+UPDATE SET
+	-- docs.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-query-store-wait-stats-transact-sql?view=sql-server-2017#wait-categories-mapping-table
+	Target.[category_id] = Source.[category_id],
+	Target.[wait_type] = Source.[wait_type],
+	Target.[waiting_tasks_count] = Source.[waiting_tasks_count],
+	Target.[wait_time_ms] = Source.[wait_time_ms],
+	Target.[max_wait_time_ms] = Source.[max_wait_time_ms],
+	Target.[signal_wait_time_ms] = Source.[signal_wait_time_ms],
+	Target.title = ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20))
+	-- IMPORTANT: DO NOT subtract Source-Target because the source always has a diff.
+	-- On each snapshot wait starts are reset to 0 - see DBCC SQLPERF('sys.dm_os_wait_stats', CLEAR);
+	-- Therefore, current snapshot is diff.
+	-- #alzheimer
+WHEN NOT MATCHED BY TARGET THEN
+INSERT (category_id,
+	[wait_type],
+	[waiting_tasks_count],
+	[wait_time_ms],
+	[max_wait_time_ms],
+	[signal_wait_time_ms], title)
+VALUES (Source.category_id, Source.[wait_type],Source.[waiting_tasks_count],
+		Source.[wait_time_ms], Source.[max_wait_time_ms],
+		Source.[signal_wait_time_ms],
+		ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)));
+
+DBCC SQLPERF('sys.dm_os_wait_stats', CLEAR);
+
+END
+GO
+
+CREATE OR ALTER   function qpi.wait_stats_as_of(@date datetime2)
+returns table
+as return (
+select
+			category = c.category,
+			wait_type,
+			wait_time_s = wait_time_ms /1000,
+			avg_wait_time = wait_time_ms / DATEDIFF(ms, start_time, GETUTCDATE()),
+			signal_wait_time_s = signal_wait_time_ms /1000,
+			avg_signal_wait_time = signal_wait_time_ms / DATEDIFF(ms, start_time, GETUTCDATE()),
+			max_wait_time_s = max_wait_time_ms /1000,
+			category_id,
+			snapshot_time = start_time
+from qpi.dm_os_wait_stats_snapshot for system_time all rsi
+	cross apply qpi.__wait_stats_category(category_id) as c
+where @date is null or @date between rsi.start_time and rsi.end_time
+);
+go
+CREATE OR ALTER
+VIEW qpi.wait_stats
+AS SELECT
+	category_id = cid.category_id,
+	wait_type = [wait_type],
 	[waiting_tasks_count],
 	[wait_time_ms],
 	[max_wait_time_ms],
 	[signal_wait_time_ms],
 	info = 'www.sqlskills.com/help/waits/' + [wait_type]
-	from sys.dm_os_wait_stats
-		cross apply qpi.__wait_stats_category_id(wait_type) as c
+	FROM sys.dm_os_wait_stats
+		cross apply qpi.__wait_stats_category_id(wait_type) as cid
+			cross apply qpi.__wait_stats_category(cid.category_id) as c
 	-- see: www.sqlskills.com/blogs/paul/wait-statistics-or-please-tell-me-where-it-hurts/
 	-- Last updated June 13, 2018
 	where [wait_type] NOT IN (
@@ -467,63 +523,8 @@ USING (
         N'XE_TIMER_EVENT' -- www.sqlskills.com/help/waits/XE_TIMER_EVENT
         )
 	and waiting_tasks_count > 0
-	) AS Source
-ON (Target.wait_type = Source.wait_type)
-WHEN MATCHED THEN
-UPDATE SET
-	-- docs.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-query-store-wait-stats-transact-sql?view=sql-server-2017#wait-categories-mapping-table
-	Target.[category_id] = Source.[category_id],
-	Target.[wait_type] = Source.[wait_type],
-	Target.[waiting_tasks_count] = Source.[waiting_tasks_count],
-	Target.[wait_time_ms] = Source.[wait_time_ms],
-	Target.[max_wait_time_ms] = Source.[max_wait_time_ms],
-	Target.[signal_wait_time_ms] = Source.[signal_wait_time_ms],
-	Target.title = ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20))
-	-- IMPORTANT: DO NOT subtract Source-Target because the source always has a diff.
-	-- On each snapshot wait starts are reset to 0 - see DBCC SQLPERF('sys.dm_os_wait_stats', CLEAR);
-	-- Therefore, current snapshot is diff.
-	-- #alzheimer
-WHEN NOT MATCHED BY TARGET THEN
-INSERT (category_id,
-	[wait_type],
-	[waiting_tasks_count],
-	[wait_time_ms],
-	[max_wait_time_ms],
-	[signal_wait_time_ms], title)
-VALUES (Source.category_id, Source.[wait_type],Source.[waiting_tasks_count],
-		Source.[wait_time_ms], Source.[max_wait_time_ms],
-		Source.[signal_wait_time_ms],
-		ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)));
-
-DBCC SQLPERF('sys.dm_os_wait_stats', CLEAR);
-
-END
-GO
-
-CREATE OR ALTER   function qpi.wait_stats_as_of(@date datetime2)
-returns table
-as return (
-select
-			category = c.category,
-			wait_type,
-			wait_time_s = wait_time_ms /1000,
-			avg_wait_time = wait_time_ms / DATEDIFF(ms, start_time, GETUTCDATE()),
-			signal_wait_time_s = signal_wait_time_ms /1000,
-			avg_signal_wait_time = signal_wait_time_ms / DATEDIFF(ms, start_time, GETUTCDATE()),
-			max_wait_time_s = max_wait_time_ms /1000,
-			category_id,
-			snapshot_time = start_time
-from qpi.dm_os_wait_stats_snapshot for system_time all rsi
-	cross apply qpi.__wait_stats_category(category_id) as c
-where @date is null or @date between rsi.start_time and rsi.end_time
-);
-go
-CREATE OR ALTER
-VIEW qpi.wait_stats
-AS SELECT *
-	FROM sys.dm_os_wait_stats
-		cross apply qpi.__wait_stats_category_id(wait_type) as cid
-			cross apply qpi.__wait_stats_category(cid.category_id) as c
+	and [wait_time_ms] > 1000
+	and [max_wait_time_ms] > 10
 
 GO
 

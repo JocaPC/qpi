@@ -118,6 +118,8 @@ GO
 ---------------------------------------------------------------------------------------------------
 DROP VIEW IF EXISTS qpi.perf_counters;
 GO
+DROP VIEW IF EXISTS qpi.db_perf_counters;
+GO
 DROP PROCEDURE IF EXISTS qpi.snapshot_perf_counters;
 GO
 BEGIN TRY

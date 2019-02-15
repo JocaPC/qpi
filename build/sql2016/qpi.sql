@@ -281,7 +281,7 @@ AS RETURN ( SELECT
 	CASE
 		WHEN @wait_type = 'Unknown'				THEN 0
 		WHEN @wait_type = 'SOS_SCHEDULER_YIELD'	THEN 1
-		WHEN @wait_type = 'SOS_WORK_DISPATCHER'	THEN 1
+		--WHEN @wait_type = 'SOS_WORK_DISPATCHER'	THEN 1
 		WHEN @wait_type = 'THREADPOOL'			THEN 2
 		WHEN @wait_type LIKE 'LCK_M_%'			THEN 3
 		WHEN @wait_type LIKE 'LATCH_%'			THEN 4
@@ -380,7 +380,7 @@ AS BEGIN
 MERGE qpi.dm_os_wait_stats_snapshot AS Target
 USING (
 	SELECT *
-	FROM qpi.wait_stats
+	FROM qpi.wait_stats_ex
 	) AS Source
 ON (Target.wait_type  COLLATE Latin1_General_100_BIN2 = Source.wait_type COLLATE Latin1_General_100_BIN2)
 WHEN MATCHED THEN
@@ -433,7 +433,7 @@ where @date is null or @date between rsi.start_time and rsi.end_time
 );
 go
 CREATE
-VIEW qpi.wait_stats
+VIEW qpi.wait_stats_ex
 AS SELECT
 	category = c.category,
 	wait_type = [wait_type],
@@ -535,8 +535,14 @@ AS SELECT
         )
 	and waiting_tasks_count > 0
 	and [wait_time_ms] > 1000
-	and [max_wait_time_ms] > 50
+	and [max_wait_time_ms] > 5
 
+GO
+
+CREATE
+VIEW qpi.wait_stats
+AS SELECT * FROM qpi.wait_stats_ex
+WHERE category_id IS NOT NULL
 GO
 
 CREATE

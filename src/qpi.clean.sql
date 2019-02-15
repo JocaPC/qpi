@@ -71,6 +71,8 @@ DROP VIEW IF EXISTS qpi.dm_bre;
 GO
 DROP VIEW IF EXISTS qpi.wait_stats
 GO
+DROP VIEW IF EXISTS qpi.wait_stats_ex
+GO
 DROP VIEW IF EXISTS qpi.wait_stats_all
 GO
 DROP VIEW IF EXISTS qpi.query_wait_stats

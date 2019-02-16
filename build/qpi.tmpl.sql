@@ -424,7 +424,7 @@ select
 			avg_wait_time = wait_time_s / DATEDIFF(s, start_time, GETUTCDATE()),
 			signal_wait_time_s = signal_wait_time_s, 
 			avg_signal_wait_time = signal_wait_time_s / DATEDIFF(s, start_time, GETUTCDATE()),
-			max_wait_time_s = max_wait_time_ms /1000,
+			max_wait_time_s = CAST(ROUND(max_wait_time_ms /1000.,1) AS NUMERIC(12,1)),
 			category_id,
 			snapshot_time = start_time
 from qpi.dm_os_wait_stats_snapshot for system_time all rsi
@@ -438,7 +438,7 @@ AS SELECT
 	category = c.category,
 	wait_type = [wait_type],
 	[waiting_tasks_count],
-	[wait_time_s] = [wait_time_ms] / 1000,
+	[wait_time_s] = CAST(ROUND([wait_time_ms] / 1000.,1) AS NUMERIC(12,1)),
 	[max_wait_time_ms],
 	[signal_wait_time_s] = [signal_wait_time_ms] / 1000,
 	category_id = cid.category_id,
@@ -557,7 +557,8 @@ as return (
 select	 
 		text =  QUERYTEXT(t.query_sql_text),
 		params = QUERYPARAM(t.query_sql_text),
-		category = ws.wait_category_desc, wait_time_ms = ws.avg_query_wait_time_ms,
+		category = ws.wait_category_desc, 
+		wait_time_ms = CAST(ROUND(ws.avg_query_wait_time_ms, 1) AS NUMERIC(12,1)),
 		q.query_id, ws.plan_id, ws.execution_type_desc, 
 		rsi.start_time, rsi.end_time,
 		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
@@ -603,7 +604,7 @@ view qpi.query_wait_stats_all
 as select * from qpi.query_wait_stats_as_of(null)
 go
 
-CREATE_OR_ALTER  function qpi.query_plan_exec_stats_as_of(@date datetime2)
+CREATE_OR_ALTER  FUNCTION qpi.query_plan_exec_stats_as_of(@date datetime2)
 returns table
 as return (
 select	t.query_text_id, q.query_id, 
@@ -613,11 +614,11 @@ select	t.query_text_id, q.query_id,
 		rs.execution_type_desc, 
         rs.count_executions,
         duration_s = rs.avg_duration /1000.0 /1000.0, 
-        cpu_time_s = rs.avg_cpu_time /1000.0 /1000.0,
+        cpu_time_ms = CAST(ROUND(rs.avg_cpu_time /1000.0, 1) AS NUMERIC(12,1)),
         logical_io_reads_kb = rs.avg_logical_io_reads * 8,
         logical_io_writes_kb = rs.avg_logical_io_writes * 8, 
         physical_io_reads_kb = rs.avg_physical_io_reads * 8, 
-        clr_time_s = rs.avg_clr_time /1000.0 /1000.0, 
+        clr_time_ms = CAST(ROUND(rs.avg_clr_time /1000.0, 1) AS NUMERIC(12,1)), 
         max_used_memory_mb = rs.avg_query_max_used_memory * 8.0 /1000,
         num_physical_io_reads = rs.avg_num_physical_io_reads, 
         log_bytes_used_kb = rs.avg_log_bytes_used /1000.0,
@@ -682,11 +683,11 @@ WITH query_stats as (
 SELECT	qps.query_id, execution_type_desc,
 		duration_s = SUM(duration_s),
 		count_executions = SUM(count_executions),
-		cpu_time_s = SUM(cpu_time_s),
+		cpu_time_ms = SUM(cpu_time_ms),
 		logical_io_reads_kb = SUM(logical_io_reads_kb),
 		logical_io_writes_kb = SUM(logical_io_writes_kb),
 		physical_io_reads_kb = SUM(physical_io_reads_kb),
-		clr_time_s = SUM(clr_time_s),
+		clr_time_ms = SUM(clr_time_ms),
 		num_physical_io_reads = SUM(num_physical_io_reads),
 		log_bytes_used_kb = SUM(log_bytes_used_kb),
 		avg_tempdb_space_used = SUM(avg_tempdb_space_used),
@@ -723,7 +724,7 @@ WITH ws AS(
 	FROM qpi.query_wait_stats
 	GROUP BY query_id, start_time, execution_type_desc
 )
-SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_s, wait_time_s = wait_time_ms/1000, logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_s, log_bytes_used_kb, qes.start_time
+SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms, wait_time_ms, logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, log_bytes_used_kb, qes.start_time
 FROM qpi.query_exec_stats qes
 	LEFT JOIN ws ON qes.query_id = ws.query_id
 				AND qes.start_time = ws.start_time				

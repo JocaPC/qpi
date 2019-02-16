@@ -53,15 +53,15 @@ DROP VIEW IF EXISTS qpi.dm_blocked_queries;
 GO
 DROP VIEW IF EXISTS qpi.query_texts;
 GO
-DROP VIEW IF EXISTS qpi.query_stats;
+DROP VIEW IF EXISTS qpi.query_exec_stats;
 GO
-DROP VIEW IF EXISTS qpi.query_stats_all;
+DROP VIEW IF EXISTS qpi.query_exec_stats_all;
 GO
-DROP VIEW IF EXISTS qpi.query_plan_stats;
+DROP VIEW IF EXISTS qpi.query_plan_exec_stats;
 GO
-DROP VIEW IF EXISTS qpi.query_plan_stats_ex;
+DROP VIEW IF EXISTS qpi.query_plan_exec_stats_ex;
 GO
-DROP VIEW IF EXISTS qpi.query_plan_stats_all;
+DROP VIEW IF EXISTS qpi.query_plan_exec_stats_all;
 GO
 DROP VIEW IF EXISTS qpi.dm_query_stats;
 GO
@@ -89,17 +89,17 @@ DROP VIEW IF EXISTS qpi.query_plan_wait_stats;
 GO
 DROP VIEW IF EXISTS qpi.query_plan_wait_stats_all;
 GO
-DROP FUNCTION IF EXISTS qpi.query_stats_as_of;
+DROP FUNCTION IF EXISTS qpi.query_exec_stats_as_of;
 GO
-DROP FUNCTION IF EXISTS qpi.query_plan_stats_as_of;
+DROP FUNCTION IF EXISTS qpi.query_plan_exec_stats_as_of;
 GO
-DROP FUNCTION IF EXISTS qpi.query_plan_stats_ex_as_of;
+DROP FUNCTION IF EXISTS qpi.query_plan_exec_stats_ex_as_of;
 GO
 DROP FUNCTION IF EXISTS qpi.query_plan_wait_stats_as_of;
 GO
-DROP FUNCTION IF EXISTS qpi.compare_query_stats_on_intervals;
+DROP FUNCTION IF EXISTS qpi.compare_query_exec_stats_on_intervals;
 GO
-DROP FUNCTION IF EXISTS qpi.query_plan_stats_diff_on_intervals;
+DROP FUNCTION IF EXISTS qpi.query_plan_exec_stats_diff_on_intervals;
 GO
 DROP FUNCTION IF EXISTS qpi.compare_query_plans;
 GO

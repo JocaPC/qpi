@@ -593,7 +593,7 @@ view qpi.query_wait_stats_all
 as select * from qpi.query_wait_stats_as_of(null)
 go
 
-CREATE OR ALTER   function qpi.query_plan_stats_as_of(@date datetime2)
+CREATE OR ALTER   function qpi.query_plan_exec_stats_as_of(@date datetime2)
 returns table
 as return (
 select	t.query_text_id, q.query_id,
@@ -629,17 +629,17 @@ GO
 -- END wait statistics
 
 
-CREATE OR ALTER  VIEW qpi.query_plan_stats
-AS SELECT * FROM qpi.query_plan_stats_as_of(GETDATE());
+CREATE OR ALTER  VIEW qpi.query_plan_exec_stats
+AS SELECT * FROM qpi.query_plan_exec_stats_as_of(GETDATE());
 GO
 
-CREATE OR ALTER  VIEW qpi.query_plan_stats_all
-AS SELECT * FROM qpi.query_plan_stats_as_of(NULL);
+CREATE OR ALTER  VIEW qpi.query_plan_exec_stats_all
+AS SELECT * FROM qpi.query_plan_exec_stats_as_of(NULL);
 GO
 
 
 -- Returns all query plan statistics without currently running values.
-CREATE OR ALTER    function qpi.query_plan_stats_ex_as_of(@date datetime2)
+CREATE OR ALTER    function qpi.query_plan_exec_stats_ex_as_of(@date datetime2)
 returns table
 as return (
 select	q.query_id,
@@ -657,14 +657,14 @@ where @date is null or @date between rsi.start_time and rsi.end_time
 );
 GO
 
-CREATE OR ALTER    VIEW qpi.query_plan_stats_ex
-AS SELECT * FROM qpi.query_plan_stats_ex_as_of(GETDATE());
+CREATE OR ALTER    VIEW qpi.query_plan_exec_stats_ex
+AS SELECT * FROM qpi.query_plan_exec_stats_ex_as_of(GETDATE());
 GO
 
 -- the most important view: query statistics:
 GO
 -- Returns statistics about all queries as of specified time.
-CREATE OR ALTER  FUNCTION qpi.query_stats_as_of(@date datetime2)
+CREATE OR ALTER  FUNCTION qpi.query_exec_stats_as_of(@date datetime2)
 returns table
 return (
 
@@ -682,7 +682,7 @@ SELECT	qps.query_id, execution_type_desc,
 		avg_tempdb_space_used = SUM(avg_tempdb_space_used),
 		start_time = MIN(start_time),
 		interval_mi = MIN(interval_mi)
-FROM qpi.query_plan_stats_as_of(@date) qps
+FROM qpi.query_plan_exec_stats_as_of(@date) qps
 GROUP BY query_id, execution_type_desc
 )
 SELECT  text =   IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
@@ -698,16 +698,16 @@ FROM query_stats qs
 )
 GO
 
-CREATE OR ALTER    VIEW qpi.query_stats
-AS SELECT * FROM  qpi.query_stats_as_of(GETDATE());
+CREATE OR ALTER    VIEW qpi.query_exec_stats
+AS SELECT * FROM  qpi.query_exec_stats_as_of(GETDATE());
 GO
-CREATE   VIEW qpi.query_stats_all
-AS SELECT * FROM  qpi.query_stats_as_of(NULL);
+CREATE   VIEW qpi.query_exec_stats_all
+AS SELECT * FROM  qpi.query_exec_stats_as_of(NULL);
 GO
 
 --- Query comparison
 
-CREATE OR ALTER    function qpi.compare_query_stats_on_intervals (@query_id int, @date1 datetime2, @date2 datetime2)
+CREATE OR ALTER    function qpi.compare_query_exec_stats_on_intervals (@query_id int, @date1 datetime2, @date2 datetime2)
 returns table
 return (
 	select a.[key], a.value value1, b.value value2
@@ -715,7 +715,7 @@ return (
 	(select [key], value
 	from openjson(
 	(select *
-		from qpi.query_stats_as_of(@date1)
+		from qpi.query_exec_stats_as_of(@date1)
 		where query_id = @query_id
 		for json path, without_array_wrapper)
 	)) as a ([key], value)
@@ -723,7 +723,7 @@ return (
 	(select [key], value
 	from openjson(
 	(select *
-		from qpi.query_stats_as_of(@date2)
+		from qpi.query_exec_stats_as_of(@date2)
 		where query_id = @query_id
 		for json path, without_array_wrapper)
 	)) as b ([key], value)
@@ -760,7 +760,7 @@ GO
 
 GO
 
-CREATE OR ALTER    function qpi.query_plan_stats_diff_on_intervals (@date1 datetime2, @date2 datetime2)
+CREATE OR ALTER    function qpi.query_plan_exec_stats_diff_on_intervals (@date1 datetime2, @date2 datetime2)
 returns table
 return (
 	select baseline = convert(varchar(16), rsi1.start_time, 20), interval = convert(varchar(16), rsi2.start_time, 20),

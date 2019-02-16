@@ -557,7 +557,7 @@ as return (
 select
 		text =   SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text)) ,
 		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), "") ,
-		category = ws.wait_category_desc, wait_time_s = ws.avg_query_wait_time_ms /1000.0,
+		category = ws.wait_category_desc, wait_time_ms = ws.avg_query_wait_time_ms,
 		q.query_id, ws.plan_id, ws.execution_type_desc,
 		rsi.start_time, rsi.end_time,
 		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
@@ -583,7 +583,8 @@ as return (
 	select
 		text = min(text),
 		params = min(params),
-		category, wait_time_s = sum(wait_time_s),
+		category, wait_time_ms = sum(wait_time_ms),
+		query_id,
 		execution_type_desc,
 		start_time = min(start_time), end_time = min(end_time),
 		interval_mi = min(interval_mi)

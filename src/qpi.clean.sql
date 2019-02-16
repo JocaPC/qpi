@@ -2,168 +2,67 @@
 --	SQL Server & Azure SQL Managed Instance - Query Performance Insights
 --	Author: Jovan Popovic
 --------------------------------------------------------------------------------
+DECLARE @name VARCHAR(128)
+DECLARE @SQL VARCHAR(MAX)
 
---------------------------------------------------------------------------------
---	File Statistics
---------------------------------------------------------------------------------
-DROP PROCEDURE IF EXISTS qpi.snapshot_file_stats;
-GO
-DROP VIEW IF EXISTS qpi.db_file_stats;
-GO
-DROP VIEW IF EXISTS qpi.file_stats;
-GO
-DROP VIEW IF EXISTS qpi.volumes;
-GO
-DROP VIEW IF EXISTS qpi.file_stats_snapshots
-GO
-DROP FUNCTION IF EXISTS qpi.file_stats_as_of;
-GO
-DROP FUNCTION IF EXISTS qpi.db_file_stats_as_of;
-GO
-DROP FUNCTION IF EXISTS qpi.file_stats_at;
-GO
-DROP FUNCTION IF EXISTS qpi.db_file_stats_at;
-GO
-DROP FUNCTION IF EXISTS qpi.fn_file_stats;
-GO
-DROP FUNCTION IF EXISTS qpi.memory_mb;
-GO
+SELECT @name = (SELECT TOP 1 [name] FROM sys.objects WHERE [type] = 'P' AND SCHEMA_NAME(schema_id) = 'qpi'  ORDER BY [name])
+
+WHILE @name is not null
+BEGIN
+    SELECT @SQL = 'DROP PROCEDURE [qpi].[' + RTRIM(@name) +']'
+    EXEC (@SQL)
+    PRINT 'Dropped Procedure: ' + @name
+    SELECT @name = (SELECT TOP 1 [name] FROM sys.objects WHERE [type] = 'P' AND SCHEMA_NAME(schema_id) = 'qpi'  AND [name] > @name ORDER BY [name])
+END
+
+/* Drop all views */
+
+SELECT @name = (SELECT TOP 1 [name] FROM sys.objects WHERE [type] = 'V' AND SCHEMA_NAME(schema_id) = 'qpi'  ORDER BY [name])
+
+WHILE @name IS NOT NULL
+BEGIN
+    SELECT @SQL = 'DROP VIEW [qpi].[' + RTRIM(@name) +']'
+    EXEC (@SQL)
+    PRINT 'Dropped View: ' + @name
+    SELECT @name = (SELECT TOP 1 [name] FROM sys.objects WHERE [type] = 'V' AND SCHEMA_NAME(schema_id) = 'qpi'  AND [name] > @name ORDER BY [name])
+END
+
+/* Drop all functions */
+SELECT @name = (SELECT TOP 1 [name] FROM sys.objects WHERE [type] IN (N'FN', N'IF', N'TF', N'FS', N'FT') AND SCHEMA_NAME(schema_id) = 'qpi'  ORDER BY [name])
+
+WHILE @name IS NOT NULL
+BEGIN
+    SELECT @SQL = 'DROP FUNCTION [qpi].[' + RTRIM(@name) +']'
+    EXEC (@SQL)
+    PRINT 'Dropped Function: ' + @name
+    SELECT @name = (SELECT TOP 1 [name] FROM sys.objects WHERE [type] IN (N'FN', N'IF', N'TF', N'FS', N'FT') AND SCHEMA_NAME(schema_id) = 'qpi'  AND [name] > @name ORDER BY [name])
+END
+
+/* Drop all tables */
+
 BEGIN TRY
 	EXEC('ALTER TABLE qpi.dm_io_virtual_file_stats_snapshot 
 			SET (SYSTEM_VERSIONING = OFF)');
 END TRY BEGIN CATCH END CATCH;
-GO
-DROP TABLE IF EXISTS qpi.dm_io_virtual_file_stats_snapshot_history;
-GO
-DROP TABLE IF EXISTS qpi.dm_io_virtual_file_stats_snapshot;
-GO
 
---------------------------------------------------------------------------------
---	Query info
---------------------------------------------------------------------------------
-DROP PROCEDURE IF EXISTS qpi.snapshot_wait_stats;
-GO
-DROP VIEW IF EXISTS qpi.queries;
-GO
-DROP VIEW IF EXISTS qpi.queries_ex;
-GO
-DROP VIEW IF EXISTS qpi.dm_queries;
-GO
-DROP VIEW IF EXISTS qpi.dm_blocked_queries;
-GO
-DROP VIEW IF EXISTS qpi.query_texts;
-GO
-DROP VIEW IF EXISTS qpi.query_stats;
-GO
-DROP VIEW IF EXISTS qpi.query_exec_stats;
-GO
-DROP VIEW IF EXISTS qpi.query_exec_stats_all;
-GO
-DROP VIEW IF EXISTS qpi.query_plan_exec_stats;
-GO
-DROP VIEW IF EXISTS qpi.query_plan_exec_stats_ex;
-GO
-DROP VIEW IF EXISTS qpi.query_plan_exec_stats_all;
-GO
-DROP VIEW IF EXISTS qpi.dm_query_stats;
-GO
-DROP VIEW IF EXISTS qpi.dm_query_locks;
-GO
-DROP VIEW IF EXISTS qpi.dm_bre;
-GO
-DROP VIEW IF EXISTS qpi.wait_stats
-GO
-DROP VIEW IF EXISTS qpi.wait_stats_ex
-GO
-DROP VIEW IF EXISTS qpi.wait_stats_all
-GO
-DROP VIEW IF EXISTS qpi.query_wait_stats
-GO
-DROP VIEW IF EXISTS qpi.query_wait_stats_all
-GO
-DROP FUNCTION IF EXISTS qpi.wait_stats_as_of;
-GO
-DROP FUNCTION IF EXISTS qpi.__wait_stats_category;
-GO
-DROP FUNCTION IF EXISTS qpi.__wait_stats_category_id;
-GO
-DROP VIEW IF EXISTS qpi.query_plan_wait_stats;
-GO
-DROP VIEW IF EXISTS qpi.query_plan_wait_stats_all;
-GO
-DROP FUNCTION IF EXISTS qpi.query_exec_stats_as_of;
-GO
-DROP FUNCTION IF EXISTS qpi.query_plan_exec_stats_as_of;
-GO
-DROP FUNCTION IF EXISTS qpi.query_plan_exec_stats_ex_as_of;
-GO
-DROP FUNCTION IF EXISTS qpi.query_plan_wait_stats_as_of;
-GO
-DROP FUNCTION IF EXISTS qpi.compare_query_exec_stats_on_intervals;
-GO
-DROP FUNCTION IF EXISTS qpi.query_plan_exec_stats_diff_on_intervals;
-GO
-DROP FUNCTION IF EXISTS qpi.compare_query_plans;
-GO
-DROP FUNCTION IF EXISTS qpi.query_wait_stats_as_of;
-GO
-BEGIN TRY
-	EXEC('ALTER TABLE qpi.dm_os_wait_stats_snapshot 
-			SET (SYSTEM_VERSIONING = OFF)');
-END TRY BEGIN CATCH END CATCH;
-GO
-DROP TABLE IF EXISTS qpi.dm_os_wait_stats_snapshot;
-GO
-DROP TABLE IF EXISTS qpi.dm_os_wait_stats_snapshot_history;
-GO
-
----------------------------------------------------------------------------------------------------
---				Performance counters
----------------------------------------------------------------------------------------------------
-DROP VIEW IF EXISTS qpi.perf_counters;
-GO
-DROP VIEW IF EXISTS qpi.db_perf_counters;
-GO
-DROP PROCEDURE IF EXISTS qpi.snapshot_perf_counters;
-GO
 BEGIN TRY
 	EXEC('ALTER TABLE qpi.dm_os_performance_counters_snapshot 
 			SET (SYSTEM_VERSIONING = OFF)');
 END TRY BEGIN CATCH END CATCH;
-GO
-DROP TABLE IF EXISTS qpi.dm_os_performance_counters_snapshot_history;
-GO
-DROP TABLE IF EXISTS qpi.dm_os_performance_counters_snapshot;
-GO
 
---------------------------------------------------------------------------------
---	Resource info
---------------------------------------------------------------------------------
-DROP VIEW IF EXISTS qpi.sys_info;
-GO
-DROP VIEW IF EXISTS qpi.dm_cpu_usage;
-GO
-DROP VIEW IF EXISTS qpi.dm_mem_usage;
-GO
-DROP VIEW IF EXISTS qpi.dm_db_mem_usage;
-GO
-DROP VIEW IF EXISTS qpi.dm_mem_plan_cache_info;
-GO
-DROP FUNCTION IF EXISTS qpi.decode_options;
-GO
-DROP FUNCTION IF EXISTS qpi.ago;
-GO
-DROP FUNCTION IF EXISTS qpi.dhm;
-GO
-DROP FUNCTION IF EXISTS qpi.us2min;
-GO
-DROP FUNCTION IF EXISTS qpi.compare_context_settings;
-GO
-DROP VIEW IF EXISTS qpi.dm_recommendations;
-GO
-DROP VIEW IF EXISTS qpi.nodes;
-GO
-DROP VIEW IF EXISTS qpi.db_nodes;
+BEGIN TRY
+	EXEC('ALTER TABLE qpi.dm_os_wait_stats_snapshot 
+			SET (SYSTEM_VERSIONING = OFF)');
+END TRY BEGIN CATCH END CATCH;
+
+SELECT @name = (SELECT TOP 1 [name] FROM sys.objects WHERE [type] = 'U'  AND SCHEMA_NAME(schema_id) = 'qpi' ORDER BY [name])
+
+WHILE @name IS NOT NULL
+BEGIN
+    SELECT @SQL = 'DROP TABLE [qpi].[' + RTRIM(@name) +']'
+    EXEC (@SQL)
+    PRINT 'Dropped Table: ' + @name
+    SELECT @name = (SELECT TOP 1 [name] FROM sys.objects WHERE [type] = 'U'  AND SCHEMA_NAME(schema_id) = 'qpi'  AND [name] > @name ORDER BY [name])
+END
 GO
 DROP SCHEMA IF EXISTS qpi;
-GO

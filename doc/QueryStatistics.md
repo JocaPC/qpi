@@ -2,17 +2,17 @@
 Query Performance Insight library enables you to analyze query and plan performance information.
 
 ## Query runtime performance
-QPI library enables you to easily get information about the query plan performance using `qpi.query_stats` view.
+QPI library enables you to easily get information about the query plan performance using `qpi.query_exec_stats` view.
 ```
 SELECT *,
 		log_throughput_kbps = log_bytes_used_kb /interval_mi /60
-FROM qpi.query_stats
+FROM qpi.query_exec_stats
 ```
 
-In order to get the query performance information on some specific time interval, you can use `qpi.query_stats_as_of` function:
+In order to get the query performance information on some specific time interval, you can use `qpi.query_exec_stats_as_of` function:
 ```
 SELECT * 
-FROM qpi.query_stats_as_of( '2018-02-25T16:30:00.0000' );
+FROM qpi.query_exec_stats_as_of( '2018-02-25T16:30:00.0000' );
 ```
 
 This query will return the same information as the previous one, but in the time window for the date provided as the argument. Time window is the Query Store interval length for this period.
@@ -20,13 +20,13 @@ This query will return the same information as the previous one, but in the time
 > `qpi.ago()` is a helper function that returns a datetime in past. `qpi.ago(1,3,15)` will return the date 1 day, 3 hours, and 15 minutes ago. Instead of calculating time or using `DATEDIFF` function, you can use this function to go back in time. The following example goes two and half hours back in time:
 ```
 SELECT * 
-FROM qpi.query_stats_as_of(qpi.ago(0,2,30));
+FROM qpi.query_exec_stats_as_of(qpi.ago(0,2,30));
 ```
 
-If you are interested in some particular query plan, you can use view `qpi.query_plan_stats_as_of` and filter results by `plan_id`:
+If you are interested in some particular query plan, you can use view `qpi.query_plan_exec_stats_as_of` and filter results by `plan_id`:
 ```
 SELECT * 
-FROM qpi.query_plan_stats_as_of(qpi.ago(1,0,0))
+FROM qpi.query_plan_exec_stats_as_of(qpi.ago(1,0,0))
 WHERE plan_id = 1815;
 ```
 
@@ -37,17 +37,17 @@ You just need to specify in what time intervals you want to see the differences:
 
 ```
 SELECT *
-FROM qpi.query_plan_stats_diff_between (qpi.ago(0,2,0), GETDATE());
+FROM qpi.query_plan_exec_stats_diff_between (qpi.ago(0,2,0), GETDATE());
 ```
 The query will return absolute and percentage differences of the average query performance statistics (avg. CPU, avg. duration, etc.)
 If you want to see performance differences for some particular query or plan, you can filter data by `query_id` or `plan_id`:
 ```
 SELECT *
-FROM qpi.query_plan_stats_diff_between (qpi.ago(0,2,0), GETDATE())
+FROM qpi.query_plan_exec_stats_diff_between (qpi.ago(0,2,0), GETDATE())
 WHERE query_id = 1389;
 
 select *
-from qpi.query_plan_stats_diff_between (qpi.ago(0,2,0), GETDATE())
+from qpi.query_plan_exec_stats_diff_between (qpi.ago(0,2,0), GETDATE())
 WHERE plan_id = 1804;
 ```
 

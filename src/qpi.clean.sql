@@ -53,6 +53,8 @@ DROP VIEW IF EXISTS qpi.dm_blocked_queries;
 GO
 DROP VIEW IF EXISTS qpi.query_texts;
 GO
+DROP VIEW IF EXISTS qpi.query_stats;
+GO
 DROP VIEW IF EXISTS qpi.query_exec_stats;
 GO
 DROP VIEW IF EXISTS qpi.query_exec_stats_all;

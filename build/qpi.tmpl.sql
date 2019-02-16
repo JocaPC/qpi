@@ -708,11 +708,26 @@ FROM query_stats qs
 )
 GO
 
-CREATE_OR_ALTER   VIEW qpi.query_exec_stats
+CREATE_OR_ALTER VIEW qpi.query_exec_stats
 AS SELECT * FROM  qpi.query_exec_stats_as_of(GETDATE());
 GO
 CREATE   VIEW qpi.query_exec_stats_all
 AS SELECT * FROM  qpi.query_exec_stats_as_of(NULL);
+GO
+
+CREATE_OR_ALTER VIEW qpi.query_stats
+AS
+WITH ws AS(
+	SELECT query_id, start_time, execution_type_desc,
+			wait_time_ms = SUM(wait_time_ms)
+	FROM qpi.query_wait_stats
+	GROUP BY query_id, start_time, execution_type_desc
+)
+SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_s, wait_time_s = wait_time_ms/1000, logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_s, log_bytes_used_kb, qes.start_time
+FROM qpi.query_exec_stats qes
+	LEFT JOIN ws ON qes.query_id = ws.query_id
+				AND qes.start_time = ws.start_time				
+				AND qes.execution_type_desc = ws.execution_type_desc
 GO
 
 --- Query comparison

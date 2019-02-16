@@ -1,6 +1,6 @@
 # Query Performance Insights API
 
-Query performance insight (QPI) library provides various views and functions that can help you to get more information about the performace of your system. In this page your can see the overview of QPI API.
+Query performance insights (QPI) library provides various views and functions that can help you to get more information about the performace of your system. In this page your can see the overview of QPI API.
 
 ## System information
 
@@ -28,13 +28,15 @@ QPI library enables you to find information about the queries that are executed 
 ## Query Statistics
 
 QPI library enables you to find statistics that can tell you more about query performance using the following views/functions:
- - `qpi.query_stats` - returns execution statistics about the queries.
- - `qpi.query_stats_all`
- - `qpi.query_stats_as_of`
- - `qpi.query_plan_stats` - returns execution statistics about the query plans.
- - `qpi.query_plan_stats_ex` - returns execution statistics about the query plans including the plan SET options.
- - `qpi.query_plan_stats_all` - returns all known execution statistics about any query plans in the past.
- - `qpi.query_plan_stats_as_of ` - returns execution statistics about the query plans at the specified point in time in the past.
+
+ - `qpi.query_exec_stats` - returns summarized executtion and wait statistics about the queries.
+ - `qpi.query_exec_stats` - returns execution statistics about the queries.
+ - `qpi.query_exec_stats_all`
+ - `qpi.query_exec_stats_as_of`
+ - `qpi.query_plan_exec_stats` - returns execution statistics about the query plans.
+ - `qpi.query_plan_exec_stats_ex` - returns execution statistics about the query plans including the plan SET options.
+ - `qpi.query_plan_exec_stats_all` - returns all known execution statistics about any query plans in the past.
+ - `qpi.query_plan_exec_stats_as_of ` - returns execution statistics about the query plans at the specified point in time in the past.
  - `qpi.dm_query_stats` - returns execution stats about the currently executing queries.
  - `qpi.wait_stats` - returns information about wait statistics.
  - `qpi.wait_stats_as_of` - returns information about wait statistics at the specified point in time in the past.

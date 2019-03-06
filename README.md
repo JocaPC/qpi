@@ -1,5 +1,7 @@
 # Query Performance Insights
 
+Do you have problem to find the scripts that can help you to easily see what is happening in your database engine? Maybe you hate when you need to dig the scripts from some of your old samples or to search them on various blog posts? I had this issue and wanted to collect the most usefull scripts that can help me to analyze query performance on SQL server/Azure SQL Database.
+
 Query Performance Insights (QPI) is a collection of useful scripts that enable you find what is happening with your SQL Server 2016+ or Azure SQL Database (Single or Managed Instance). This is a set of helper views, functions, and procedures that wrap Query Store and Dynamic Management Objects. See how to install the proper version for your SQL Server in [Installation](#installation) section.
 
 ## Why I need this kind of library?
@@ -76,7 +78,7 @@ You can download the source and run it in your database. Choose the version base
  
   You can also remove all functions and views in `qpi` schema using the [cleaning script](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.clean.sql).
 
- If you are using SQL Agent on SQL Server and Azure SQL Managed you can easily take the snapshots of wait/file statistics. Thsi is needed because file and wait statistics compare the current statistics with the previous ones.
+ If you are using SQL Agent on SQL Server and Azure SQL Managed you can easily take the snapshots of wait/file statistics. This is needed because file and wait statistics compare the current statistics with the previous ones.
  You can create a job that periodically snapshot the file and wait statistics using the [QPI Agent job](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.collection.agent.sql) script. Before you run this query, set the name of database where you created QPI functionalities:
 
 ```

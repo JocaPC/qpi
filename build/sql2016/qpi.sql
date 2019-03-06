@@ -1,13 +1,3 @@
-
-
-
-
-
-
-
-
-
-
 --------------------------------------------------------------------------------
 --	SQL Server & Azure SQL (Database & Instance) - Query Performance Insights
 --	Author: Jovan Popovic
@@ -24,24 +14,36 @@ AS BEGIN RETURN ( @microseconds /1000 /1000 /60 ) END;
 GO
 
 ---
----	SELECT qpi.ago(2,10,15) => GETDATE() - ( 2 days 10 hours 15 min)
+---	SELECT qpi.ago(2,10,15) => GETUTCDATE() - ( 2 days 10 hours 15 min)
 ---
 CREATE  FUNCTION qpi.ago(@days tinyint, @hours tinyint, @min tinyint)
 RETURNS datetime2
 AS BEGIN RETURN DATEADD(day, - @days,
 					DATEADD(hour, - @hours,
-						DATEADD(minute, - @min, GETDATE())
+						DATEADD(minute, - @min, GETUTCDATE())
 						)
 					) END;
 GO
 ---
----	SELECT qpi.dhm(21015) => GETDATE() - ( 2 days 10 hours 15 min)
+---	SELECT qpi.utc(-21015) => GETUTCDATE() - ( 2 days 10 hours 15 min)
 ---
-CREATE  FUNCTION qpi.dhm(@time int)
+CREATE  FUNCTION qpi.utc(@time int)
 RETURNS datetime2
-AS BEGIN RETURN DATEADD(DAY, - ((@time /10000) %100),
-					DATEADD(HOUR, - (@time /100) %100,
-						DATEADD(MINUTE, - (@time %100), GETDATE())
+AS BEGIN RETURN DATEADD(DAY, ((@time /10000) %100),
+					DATEADD(HOUR, (@time /100) %100,
+						DATEADD(MINUTE, (@time %100), GETUTCDATE())
+						)
+					) END;
+GO
+
+---
+---	SELECT qpi.t(-21015) => GETDATE() - ( 2 days 10 hours 15 min)
+---
+CREATE  FUNCTION qpi.t(@time int)
+RETURNS datetime2
+AS BEGIN RETURN DATEADD(DAY, ((@time /10000) %100),
+					DATEADD(HOUR, (@time /100) %100,
+						DATEADD(MINUTE, (@time %100), GETDATE())
 						)
 					) END;
 GO
@@ -407,7 +409,7 @@ INSERT (category_id,
 VALUES (Source.category_id, Source.[wait_type],Source.[waiting_tasks_count],
 		Source.[wait_time_s], Source.[max_wait_time_ms],
 		Source.[signal_wait_time_s],
-		ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)));
+		ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)) );
 
 DBCC SQLPERF('sys.dm_os_wait_stats', CLEAR);
 
@@ -574,7 +576,7 @@ go
 
 CREATE
 VIEW qpi.query_plan_wait_stats
-AS SELECT * FROM  qpi.query_plan_wait_stats_as_of(GETDATE());
+AS SELECT * FROM  qpi.query_plan_wait_stats_as_of(GETUTCDATE());
 GO
 
 CREATE
@@ -596,7 +598,7 @@ go
 
 CREATE
 view qpi.query_wait_stats
-as select * from qpi.query_wait_stats_as_of(getdate())
+as select * from qpi.query_wait_stats_as_of(GETUTCDATE())
 go
 
 CREATE
@@ -641,7 +643,7 @@ GO
 
 
 CREATE  VIEW qpi.query_plan_exec_stats
-AS SELECT * FROM qpi.query_plan_exec_stats_as_of(GETDATE());
+AS SELECT * FROM qpi.query_plan_exec_stats_as_of(GETUTCDATE());
 GO
 
 CREATE  VIEW qpi.query_plan_exec_stats_all
@@ -669,7 +671,7 @@ where @date is null or @date between rsi.start_time and rsi.end_time
 GO
 
 CREATE    VIEW qpi.query_plan_exec_stats_ex
-AS SELECT * FROM qpi.query_plan_exec_stats_ex_as_of(GETDATE());
+AS SELECT * FROM qpi.query_plan_exec_stats_ex_as_of(GETUTCDATE());
 GO
 
 -- the most important view: query statistics:
@@ -710,7 +712,7 @@ FROM query_stats qs
 GO
 
 CREATE  VIEW qpi.query_exec_stats
-AS SELECT * FROM  qpi.query_exec_stats_as_of(GETDATE());
+AS SELECT * FROM  qpi.query_exec_stats_as_of(GETUTCDATE());
 GO
 CREATE   VIEW qpi.query_exec_stats_all
 AS SELECT * FROM  qpi.query_exec_stats_as_of(NULL);
@@ -872,14 +874,14 @@ UPDATE SET
 	Target.[num_of_bytes_written] = Source.[num_of_bytes_written] ,-- Target.[num_of_bytes_written],
 	Target.[num_of_reads] = Source.[num_of_reads] ,-- Target.[num_of_reads],
 	Target.[num_of_writes] = Source.[num_of_writes] ,-- Target.[num_of_writes],
-	Target.title = ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)),
-	Target.interval_mi = DATEDIFF(mi, Target.start_time, GETDATE())
+	Target.title = ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)) ,
+	Target.interval_mi = DATEDIFF(mi, Target.start_time, GETUTCDATE())
 WHEN NOT MATCHED BY TARGET THEN
 INSERT (db_name,database_id,file_name,size_gb,[file_id],
     [io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
     [num_of_bytes_read], [num_of_bytes_written],
     [num_of_reads], [num_of_writes], title)
-VALUES (Source.db_name,Source.database_id,Source.file_name,Source.size_gb,Source.[file_id],Source.[io_stall_read_ms],Source.[io_stall_write_ms],Source.[io_stall_queued_read_ms],Source.[io_stall_queued_write_ms],Source.[io_stall],Source.[num_of_bytes_read],Source.[num_of_bytes_written],Source.[num_of_reads],Source.[num_of_writes],ISNULL(@title, CAST( GETDATE() as NVARCHAR(50))));
+VALUES (Source.db_name,Source.database_id,Source.file_name,Source.size_gb,Source.[file_id],Source.[io_stall_read_ms],Source.[io_stall_write_ms],Source.[io_stall_queued_read_ms],Source.[io_stall_queued_write_ms],Source.[io_stall],Source.[num_of_bytes_read],Source.[num_of_bytes_written],Source.[num_of_reads],Source.[num_of_writes], ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)) );
 END
 GO
 CREATE  FUNCTION qpi.fn_file_stats(@database_id int, @end_date datetime2 = null, @milestone nvarchar(100) = null)
@@ -906,7 +908,7 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 			UNION ALL
 			SELECT	s.database_id,s.[file_id],[size_gb]=8*mf.size/1024/1024,[io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
 						[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
-						title = 'Latest', start_time = GETDATE(), end_time = CAST('9999-12-31T00:00:00.0000' AS DATETIME2)
+						title = 'Latest', start_time = GETUTCDATE(), end_time = CAST('9999-12-31T00:00:00.0000' AS DATETIME2)
 				FROM sys.dm_io_virtual_file_stats (@database_id, null) s
 					JOIN sys.master_files mf ON mf.database_id = s.database_id AND mf.file_id = s.file_id
 			WHERE @milestone is null AND @end_date is null
@@ -971,7 +973,7 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 			AND (
 				((@end_date is not null or @milestone is not null) and cur.start_time = prev.end_time)	-- cur is snapshot history => get the previous snapshot history record
 				OR
-				((@end_date is null and @milestone is null) and prev.end_time > GETDATE())				-- cur is dm_io_virtual_file_stats => get the latest snapshot history record
+				((@end_date is null and @milestone is null) and prev.end_time > GETUTCDATE())				-- cur is dm_io_virtual_file_stats => get the latest snapshot history record
 			)
 	WHERE (@database_id is null or @database_id = prev.database_id)
 )

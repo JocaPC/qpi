@@ -14,24 +14,36 @@ AS BEGIN RETURN ( @microseconds /1000 /1000 /60 ) END;
 GO
 
 ---
----	SELECT qpi.ago(2,10,15) => GETDATE() - ( 2 days 10 hours 15 min)
+---	SELECT qpi.ago(2,10,15) => GETUTCDATE() - ( 2 days 10 hours 15 min)
 ---
 CREATE OR ALTER  FUNCTION qpi.ago(@days tinyint, @hours tinyint, @min tinyint)
 RETURNS datetime2
 AS BEGIN RETURN DATEADD(day, - @days,
 					DATEADD(hour, - @hours,
-						DATEADD(minute, - @min, GETDATE())
+						DATEADD(minute, - @min, GETUTCDATE())
 						)
 					) END;
 GO
 ---
----	SELECT qpi.dhm(21015) => GETDATE() - ( 2 days 10 hours 15 min)
+---	SELECT qpi.utc(-21015) => GETUTCDATE() - ( 2 days 10 hours 15 min)
 ---
-CREATE OR ALTER  FUNCTION qpi.dhm(@time int)
+CREATE OR ALTER  FUNCTION qpi.utc(@time int)
 RETURNS datetime2
-AS BEGIN RETURN DATEADD(DAY, - ((@time /10000) %100),
-					DATEADD(HOUR, - (@time /100) %100,
-						DATEADD(MINUTE, - (@time %100), GETDATE())
+AS BEGIN RETURN DATEADD(DAY, ((@time /10000) %100),
+					DATEADD(HOUR, (@time /100) %100,
+						DATEADD(MINUTE, (@time %100), GETUTCDATE())
+						)
+					) END;
+GO
+
+---
+---	SELECT qpi.t(-21015) => GETDATE() - ( 2 days 10 hours 15 min)
+---
+CREATE OR ALTER  FUNCTION qpi.t(@time int)
+RETURNS datetime2
+AS BEGIN RETURN DATEADD(DAY, ((@time /10000) %100),
+					DATEADD(HOUR, (@time /100) %100,
+						DATEADD(MINUTE, (@time %100), GETDATE())
 						)
 					) END;
 GO
@@ -397,7 +409,7 @@ INSERT (category_id,
 VALUES (Source.category_id, Source.[wait_type],Source.[waiting_tasks_count],
 		Source.[wait_time_s], Source.[max_wait_time_ms],
 		Source.[signal_wait_time_s],
-		ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)));
+		ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)) );
 
 DBCC SQLPERF('sys.dm_os_wait_stats', CLEAR);
 
@@ -564,7 +576,7 @@ go
 
 CREATE OR ALTER
 VIEW qpi.query_plan_wait_stats
-AS SELECT * FROM  qpi.query_plan_wait_stats_as_of(GETDATE());
+AS SELECT * FROM  qpi.query_plan_wait_stats_as_of(GETUTCDATE());
 GO
 
 CREATE OR ALTER
@@ -586,7 +598,7 @@ go
 
 CREATE OR ALTER
 view qpi.query_wait_stats
-as select * from qpi.query_wait_stats_as_of(getdate())
+as select * from qpi.query_wait_stats_as_of(GETUTCDATE())
 go
 
 CREATE OR ALTER
@@ -631,7 +643,7 @@ GO
 
 
 CREATE OR ALTER  VIEW qpi.query_plan_exec_stats
-AS SELECT * FROM qpi.query_plan_exec_stats_as_of(GETDATE());
+AS SELECT * FROM qpi.query_plan_exec_stats_as_of(GETUTCDATE());
 GO
 
 CREATE OR ALTER  VIEW qpi.query_plan_exec_stats_all
@@ -659,7 +671,7 @@ where @date is null or @date between rsi.start_time and rsi.end_time
 GO
 
 CREATE OR ALTER    VIEW qpi.query_plan_exec_stats_ex
-AS SELECT * FROM qpi.query_plan_exec_stats_ex_as_of(GETDATE());
+AS SELECT * FROM qpi.query_plan_exec_stats_ex_as_of(GETUTCDATE());
 GO
 
 -- the most important view: query statistics:
@@ -700,7 +712,7 @@ FROM query_stats qs
 GO
 
 CREATE OR ALTER  VIEW qpi.query_exec_stats
-AS SELECT * FROM  qpi.query_exec_stats_as_of(GETDATE());
+AS SELECT * FROM  qpi.query_exec_stats_as_of(GETUTCDATE());
 GO
 CREATE   VIEW qpi.query_exec_stats_all
 AS SELECT * FROM  qpi.query_exec_stats_as_of(NULL);

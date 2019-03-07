@@ -161,7 +161,7 @@ CONVERT(NUMERIC(10,2),r.estimated_completion_time/1000.0/60.0/60.0) AS eta_h,
 CONVERT(VARCHAR(1000),(SELECT SUBSTRING(text,r.statement_start_offset/2,
 CASE WHEN r.statement_end_offset = -1 THEN 1000 ELSE (r.statement_end_offset-r.statement_start_offset)/2 END)
 FROM sys.dm_exec_sql_text(sql_handle))) AS query,r.session_id
-FROM sys.dm_exec_requests r WHERE command IN ('RESTORE DATABASE','BACKUP DATABASE','BACKUP LOG')
+FROM sys.dm_exec_requests r WHERE command IN ('RESTORE DATABASE','BACKUP DATABASE','BACKUP LOG','RESTORE LOG')
 GO
 
 CREATE OR ALTER  VIEW qpi.dm_query_locks

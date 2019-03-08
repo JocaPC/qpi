@@ -1069,16 +1069,17 @@ GO
 #ifndef DB
 CREATE_OR_ALTER VIEW qpi.sys_info
 AS
-SELECT cpu_count,
-	memory_gb = ROUND(qpi.memory_mb() /1024.,1),
-	sqlserver_start_time,
-	physical_cpu_count = cpu_count/hyperthread_ratio
+SELECT 
 #ifdef MI
-	, service_tier, hardware_generation, max_storage_gb
+	cpu_count = virtual_core_count, service_tier, hardware_generation, max_storage_gb,
+#else
+	cpu_count = cpu_count,
 #endif
+	memory_gb = ROUND(qpi.memory_mb() /1024.,1),
+	sqlserver_start_time
 FROM sys.dm_os_sys_info
 #ifdef MI
-	, (select top 1 service_tier = sku, hardware_generation, max_storage_gb = reserved_storage_mb/1024 
+	, (select top 1 service_tier = sku, virtual_core_count, hardware_generation, max_storage_gb = reserved_storage_mb/1024 
 	from master.sys.server_resource_stats
 	where start_time > DATEADD(mi, -7, GETUTCDATE())) as srs
 #endif

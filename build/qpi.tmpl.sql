@@ -196,8 +196,17 @@ FROM qpi.dm_queries q
 	JOIN sys.dm_tran_locks as tl
 		ON q.session_id = tl.request_session_id and q.request_id = tl.request_request_id 
 		LEFT JOIN 
-		sys.partitions
-		AS p ON p.hobt_id = tl.resource_associated_entity_id
+		(SELECT p.object_id, p.hobt_id, au.allocation_unit_id
+		 FROM sys.partitions p
+		 LEFT JOIN sys.allocation_units AS au
+		 ON (au.type IN (1,3) AND au.container_id = p.hobt_id)
+            	OR
+            (au.type = 2 AND au.container_id = p.partition_id)
+		)
+		AS p ON 
+			tl.resource_type IN ('PAGE','KEY','RID','HOBT') AND p.hobt_id = tl.resource_associated_entity_id
+			OR
+			tl.resource_type = 'ALLOCATION_UNIT' AND p.allocation_unit_id = tl.resource_associated_entity_id
 			LEFT JOIN sys.objects obj ON p.object_id = obj.object_id
 GO
 
@@ -263,8 +272,17 @@ FROM qpi.dm_queries blocked
 	LEFT JOIN sys.dm_tran_locks as tl
 	 ON tl.lock_owner_address = w.resource_address 
 	 LEFT JOIN 
-	 	sys.partitions 
-		AS p ON p.hobt_id = tl.resource_associated_entity_id
+	 	(SELECT p.object_id, p.hobt_id, au.allocation_unit_id
+		 FROM sys.partitions p
+		 LEFT JOIN sys.allocation_units AS au
+		 ON (au.type IN (1,3) AND au.container_id = p.hobt_id)
+            	OR
+            (au.type = 2 AND au.container_id = p.partition_id)
+		)
+		AS p ON 
+			tl.resource_type IN ('PAGE','KEY','RID','HOBT') AND p.hobt_id = tl.resource_associated_entity_id
+			OR
+			tl.resource_type = 'ALLOCATION_UNIT' AND p.allocation_unit_id = tl.resource_associated_entity_id
 		LEFT JOIN sys.objects obj ON p.object_id = obj.object_id
 WHERE w.session_id <> w.blocking_session_id
 GO

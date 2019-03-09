@@ -184,7 +184,8 @@ SELECT
 FROM qpi.dm_queries q
 	JOIN sys.dm_tran_locks as tl
 		ON q.session_id = tl.request_session_id and q.request_id = tl.request_request_id
-		LEFT JOIN sys.partitions p ON p.hobt_id = tl.resource_associated_entity_id
+		LEFT JOIN sys.partitions p
+			ON p.hobt_id = tl.resource_associated_entity_id AND tl.resource_type IN ('PAGE','KEY','RID','HOBT')
 			LEFT JOIN sys.objects obj ON p.object_id = obj.object_id
 GO
 
@@ -249,7 +250,8 @@ FROM qpi.dm_queries blocked
 			CROSS APPLY sys.dm_exec_sql_text(conn.most_recent_sql_handle) AS last_query
 	LEFT JOIN sys.dm_tran_locks as tl
 	 ON tl.lock_owner_address = w.resource_address
-	 LEFT JOIN sys.partitions p ON p.hobt_id = tl.resource_associated_entity_id
+	 LEFT JOIN sys.partitions p
+	 	ON p.hobt_id = tl.resource_associated_entity_id AND tl.resource_type IN ('PAGE','KEY','RID','HOBT')
 		LEFT JOIN sys.objects obj ON p.object_id = obj.object_id
 WHERE w.session_id <> w.blocking_session_id
 GO

@@ -736,7 +736,7 @@ GO
 CREATE OR ALTER  VIEW qpi.query_exec_stats
 AS SELECT * FROM  qpi.query_exec_stats_as_of(GETUTCDATE());
 GO
-CREATE   VIEW qpi.query_exec_stats_all
+CREATE OR ALTER  VIEW qpi.query_exec_stats_all
 AS SELECT * FROM  qpi.query_exec_stats_as_of(NULL);
 GO
 

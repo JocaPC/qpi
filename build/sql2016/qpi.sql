@@ -736,7 +736,7 @@ GO
 CREATE  VIEW qpi.query_exec_stats
 AS SELECT * FROM  qpi.query_exec_stats_as_of(GETUTCDATE());
 GO
-CREATE   VIEW qpi.query_exec_stats_all
+CREATE  VIEW qpi.query_exec_stats_all
 AS SELECT * FROM  qpi.query_exec_stats_as_of(NULL);
 GO
 
@@ -987,7 +987,8 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 		write_mb = CAST((cur.num_of_bytes_written - prev.num_of_bytes_written)/1024.0/1024 AS numeric(10,2)),
 		num_of_reads = cur.num_of_reads - prev.num_of_reads,
 		num_of_writes = cur.num_of_writes - prev.num_of_writes,
-		interval_mi = DATEDIFF(minute, prev.start_time, cur.start_time)
+		interval_mi = DATEDIFF(minute, prev.start_time, cur.start_time),
+		[type] = mf.type_desc
 	FROM cur
 		JOIN qpi.dm_io_virtual_file_stats_snapshot for system_time all as prev
 			ON cur.file_id = prev.file_id
@@ -997,6 +998,7 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 				OR
 				((@end_date is null and @milestone is null) and prev.end_time > GETUTCDATE())				-- cur is dm_io_virtual_file_stats => get the latest snapshot history record
 			)
+		JOIN sys.master_files mf ON cur.database_id = mf.database_id AND cur.file_id = mf.file_id
 	WHERE (@database_id is null or @database_id = prev.database_id)
 )
 GO
@@ -1035,7 +1037,7 @@ AS RETURN (
 );
 GO
 
-CREATE VIEW qpi.file_stats_snapshots
+CREATEOR_ALTER VIEW qpi.file_stats_snapshots
 AS
 SELECT DISTINCT snapshot_name = title, start_time, end_time
 FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL

@@ -1048,7 +1048,7 @@ AS RETURN (
 );
 GO
 
-CREATEOR_ALTER VIEW qpi.file_stats_snapshots
+CREATE_OR_ALTER VIEW qpi.file_stats_snapshots
 AS
 SELECT DISTINCT snapshot_name = title, start_time, end_time
 FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL

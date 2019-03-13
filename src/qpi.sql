@@ -644,9 +644,11 @@ select	t.query_text_id, q.query_id,
         physical_io_reads_kb = CAST(ROUND(rs.avg_physical_io_reads * 8 /1000.0, 2) AS NUMERIC(12,2)),
         clr_time_ms = CAST(ROUND(rs.avg_clr_time /1000.0, 1) AS NUMERIC(12,1)),
         max_used_memory_mb = rs.avg_query_max_used_memory * 8.0 /1000,
+
         num_physical_io_reads = rs.avg_num_physical_io_reads,
         log_bytes_used_kb = CAST(ROUND( rs.avg_log_bytes_used /1000.0, 2) AS NUMERIC(12,2)),
         rs.avg_tempdb_space_used,
+
 		start_time = convert(varchar(16), rsi.start_time, 20),
 		end_time = convert(varchar(16), rsi.end_time, 20),
 		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
@@ -712,9 +714,11 @@ SELECT	qps.query_id, execution_type_desc,
 		logical_io_writes_kb = SUM(logical_io_writes_kb),
 		physical_io_reads_kb = SUM(physical_io_reads_kb),
 		clr_time_ms = SUM(clr_time_ms),
+
 		num_physical_io_reads = SUM(num_physical_io_reads),
 		log_bytes_used_kb = SUM(log_bytes_used_kb),
 		avg_tempdb_space_used = SUM(avg_tempdb_space_used),
+
 		start_time = MIN(start_time),
 		interval_mi = MIN(interval_mi)
 FROM qpi.query_plan_exec_stats_as_of(@date) qps
@@ -750,7 +754,12 @@ WITH ws AS(
 	GROUP BY query_id, start_time, execution_type_desc
 )
 
-SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms, wait_time_ms, logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, log_bytes_used_kb, qes.start_time
+SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
+
+ wait_time_ms,
+ log_bytes_used_kb,
+
+ logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time
 FROM qpi.query_exec_stats qes
 
 	LEFT JOIN ws ON qes.query_id = ws.query_id
@@ -825,8 +834,10 @@ return (
 		d_cpu_time_perc = iif(rs2.avg_cpu_time=0, null, ROUND(100*(1 - rs1.avg_cpu_time/rs2.avg_cpu_time),0)),
 		d_physical_io_reads = rs2.avg_physical_io_reads - rs1.avg_physical_io_reads,
 		d_physical_io_reads_perc = iif(rs2.avg_physical_io_reads=0, null, ROUND(100*(1 - rs1.avg_physical_io_reads/rs2.avg_physical_io_reads),0)),
+
 		d_log_bytes_used = rs2.avg_log_bytes_used - rs1.avg_log_bytes_used,
 		d_log_bytes_used_perc = iif(rs2.avg_log_bytes_used=0, null, ROUND(100*(1 - rs1.avg_log_bytes_used/rs2.avg_log_bytes_used),0)),
+
 		q.query_text_id, q.query_id, p.plan_id
 from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id

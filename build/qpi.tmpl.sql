@@ -579,7 +579,7 @@ VIEW qpi.wait_stats
 AS SELECT * FROM qpi.wait_stats_ex
 WHERE category_id IS NOT NULL
 GO
-
+#ifndef SQL2016
 CREATE_OR_ALTER
 VIEW qpi.wait_stats_all
 AS SELECT * FROM  qpi.wait_stats_as_of(null);
@@ -638,7 +638,7 @@ CREATE_OR_ALTER
 view qpi.query_wait_stats_all
 as select * from qpi.query_wait_stats_as_of(null)
 go
-
+#endif
 CREATE_OR_ALTER  FUNCTION qpi.query_plan_exec_stats_as_of(@date datetime2)
 returns table
 as return (
@@ -753,17 +753,21 @@ GO
 
 CREATE_OR_ALTER VIEW qpi.query_stats
 AS
+#ifndef SQL2016
 WITH ws AS(
 	SELECT query_id, start_time, execution_type_desc,
 			wait_time_ms = SUM(wait_time_ms)
 	FROM qpi.query_wait_stats
 	GROUP BY query_id, start_time, execution_type_desc
 )
+#endif
 SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms, wait_time_ms, logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, log_bytes_used_kb, qes.start_time
 FROM qpi.query_exec_stats qes
+#ifndef SQL2016
 	LEFT JOIN ws ON qes.query_id = ws.query_id
 				AND qes.start_time = ws.start_time				
 				AND qes.execution_type_desc = ws.execution_type_desc
+#endif
 GO
 
 --- Query comparison

@@ -568,66 +568,6 @@ VIEW qpi.wait_stats
 AS SELECT * FROM qpi.wait_stats_ex
 WHERE category_id IS NOT NULL
 GO
-
-CREATE
-VIEW qpi.wait_stats_all
-AS SELECT * FROM  qpi.wait_stats_as_of(null);
-GO
-
-CREATE
-function qpi.query_plan_wait_stats_as_of(@date datetime2)
-	returns table
-as return (
-select
-		text =   SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text)) ,
-		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 0, (PATINDEX( '%)[^,]%', t.query_sql_text))+1), "") ,
-		category = ws.wait_category_desc,
-		wait_time_ms = CAST(ROUND(ws.avg_query_wait_time_ms, 1) AS NUMERIC(12,1)),
-		q.query_id, ws.plan_id, ws.execution_type_desc,
-		rsi.start_time, rsi.end_time,
-		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
-		ws.runtime_stats_interval_id, ws.wait_stats_id, q.query_hash
-from sys.query_store_query_text t
-	join sys.query_store_query q on t.query_text_id = q.query_text_id
-	join sys.query_store_plan p on p.query_id = q.query_id
-	join sys.query_store_wait_stats ws on ws.plan_id = p.plan_id
-	join sys.query_store_runtime_stats_interval rsi on ws.runtime_stats_interval_id = rsi.runtime_stats_interval_id
-where @date is null or @date between rsi.start_time and rsi.end_time
-);
-go
-
-CREATE
-VIEW qpi.query_plan_wait_stats
-AS SELECT * FROM  qpi.query_plan_wait_stats_as_of(GETUTCDATE());
-GO
-
-CREATE
-function qpi.query_wait_stats_as_of(@date datetime2)
-	returns table
-as return (
-	select
-		text = min(text),
-		params = min(params),
-		category, wait_time_ms = sum(wait_time_ms),
-		query_id,
-		execution_type_desc,
-		start_time = min(start_time), end_time = min(end_time),
-		interval_mi = min(interval_mi)
-from qpi.query_plan_wait_stats_as_of(@date)
-group by query_id, category, execution_type_desc
-);
-go
-
-CREATE
-view qpi.query_wait_stats
-as select * from qpi.query_wait_stats_as_of(GETUTCDATE())
-go
-
-CREATE
-view qpi.query_wait_stats_all
-as select * from qpi.query_wait_stats_as_of(null)
-go
-
 CREATE   FUNCTION qpi.query_plan_exec_stats_as_of(@date datetime2)
 returns table
 as return (
@@ -742,17 +682,8 @@ GO
 
 CREATE  VIEW qpi.query_stats
 AS
-WITH ws AS(
-	SELECT query_id, start_time, execution_type_desc,
-			wait_time_ms = SUM(wait_time_ms)
-	FROM qpi.query_wait_stats
-	GROUP BY query_id, start_time, execution_type_desc
-)
 SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms, wait_time_ms, logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, log_bytes_used_kb, qes.start_time
 FROM qpi.query_exec_stats qes
-	LEFT JOIN ws ON qes.query_id = ws.query_id
-				AND qes.start_time = ws.start_time
-				AND qes.execution_type_desc = ws.execution_type_desc
 GO
 
 --- Query comparison

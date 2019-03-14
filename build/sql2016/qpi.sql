@@ -645,13 +645,13 @@ return (
 
 WITH query_stats as (
 SELECT	qps.query_id, execution_type_desc,
-		duration_s = SUM(duration_s),
+		duration_s = AVG(duration_s),
 		count_executions = SUM(count_executions),
-		cpu_time_ms = SUM(cpu_time_ms),
-		logical_io_reads_kb = SUM(logical_io_reads_kb),
-		logical_io_writes_kb = SUM(logical_io_writes_kb),
-		physical_io_reads_kb = SUM(physical_io_reads_kb),
-		clr_time_ms = SUM(clr_time_ms),
+		cpu_time_ms = AVG(cpu_time_ms),
+		logical_io_reads_kb = AVG(logical_io_reads_kb),
+		logical_io_writes_kb = AVG(logical_io_writes_kb),
+		physical_io_reads_kb = AVG(physical_io_reads_kb),
+		clr_time_ms = AVG(clr_time_ms),
 		start_time = MIN(start_time),
 		interval_mi = MIN(interval_mi)
 FROM qpi.query_plan_exec_stats_as_of(@date) qps

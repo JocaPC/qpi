@@ -650,7 +650,7 @@ select	t.query_text_id, q.query_id,
 
         num_physical_io_reads = rs.avg_num_physical_io_reads,
         log_bytes_used_kb = CAST(ROUND( rs.avg_log_bytes_used /1000.0, 2) AS NUMERIC(12,2)),
-        rs.avg_tempdb_space_used,
+        tempdb_used_mb = CAST(ROUND(rs.avg_tempdb_space_used *8 /1000.0, 2) AS NUMERIC(12,2)),
 
 		start_time = convert(varchar(16), rsi.start_time, 20),
 		end_time = convert(varchar(16), rsi.end_time, 20),
@@ -710,17 +710,17 @@ return (
 
 WITH query_stats as (
 SELECT	qps.query_id, execution_type_desc,
-		duration_s = SUM(duration_s),
+		duration_s = AVG(duration_s),
 		count_executions = SUM(count_executions),
-		cpu_time_ms = SUM(cpu_time_ms),
-		logical_io_reads_kb = SUM(logical_io_reads_kb),
-		logical_io_writes_kb = SUM(logical_io_writes_kb),
-		physical_io_reads_kb = SUM(physical_io_reads_kb),
-		clr_time_ms = SUM(clr_time_ms),
+		cpu_time_ms = AVG(cpu_time_ms),
+		logical_io_reads_kb = AVG(logical_io_reads_kb),
+		logical_io_writes_kb = AVG(logical_io_writes_kb),
+		physical_io_reads_kb = AVG(physical_io_reads_kb),
+		clr_time_ms = AVG(clr_time_ms),
 
-		num_physical_io_reads = SUM(num_physical_io_reads),
-		log_bytes_used_kb = SUM(log_bytes_used_kb),
-		avg_tempdb_space_used = SUM(avg_tempdb_space_used),
+		num_physical_io_reads = AVG(num_physical_io_reads),
+		log_bytes_used_kb = AVG(log_bytes_used_kb),
+		tempdb_used_mb = AVG(tempdb_used_mb),
 
 		start_time = MIN(start_time),
 		interval_mi = MIN(interval_mi)

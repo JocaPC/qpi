@@ -1246,7 +1246,7 @@ SELECT
 	last_sent_lsn,
 	last_received_lsn,
 	last_received_time,
-	last_hardening_lsn,
+	last_hardened_lsn,
 	last_hardened_time,
 	last_redone_lsn,
 	last_redone_time,

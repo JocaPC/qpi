@@ -630,16 +630,19 @@ group by query_id, category, execution_type_desc
 go
 
 CREATE_OR_ALTER
-view qpi.query_wait_stats
+VIEW qpi.query_wait_stats
 as select * from qpi.query_wait_stats_as_of(GETUTCDATE())
 go
 
 CREATE_OR_ALTER
-view qpi.query_wait_stats_all
+VIEW qpi.query_wait_stats_all
 as select * from qpi.query_wait_stats_as_of(null)
 go
 #endif
-CREATE_OR_ALTER  FUNCTION qpi.query_plan_exec_stats_as_of(@date datetime2)
+-- END wait statistics
+
+CREATE_OR_ALTER
+FUNCTION qpi.query_plan_exec_stats_as_of(@date datetime2)
 returns table
 as return (
 select	t.query_text_id, q.query_id, 
@@ -671,23 +674,22 @@ from sys.query_store_query_text t
 	join sys.query_store_runtime_stats_interval rsi 
 			on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
 where (@date is null or @date between rsi.start_time and rsi.end_time)
-
 );
 GO
--- END wait statistics
 
-
-CREATE_OR_ALTER VIEW qpi.query_plan_exec_stats
+CREATE_OR_ALTER
+VIEW qpi.query_plan_exec_stats
 AS SELECT * FROM qpi.query_plan_exec_stats_as_of(GETUTCDATE());
 GO
 
-CREATE_OR_ALTER VIEW qpi.query_plan_exec_stats_all
+CREATE_OR_ALTER
+VIEW qpi.query_plan_exec_stats_all
 AS SELECT * FROM qpi.query_plan_exec_stats_as_of(NULL);
 GO
 
-
 -- Returns all query plan statistics without currently running values.
-CREATE_OR_ALTER   function qpi.query_plan_exec_stats_ex_as_of(@date datetime2)
+CREATE_OR_ALTER
+FUNCTION qpi.query_plan_exec_stats_ex_as_of(@date datetime2)
 returns table
 as return (
 select	q.query_id, 
@@ -705,7 +707,8 @@ where @date is null or @date between rsi.start_time and rsi.end_time
 );
 GO
 
-CREATE_OR_ALTER   VIEW qpi.query_plan_exec_stats_ex
+CREATE_OR_ALTER
+VIEW qpi.query_plan_exec_stats_ex
 AS SELECT * FROM qpi.query_plan_exec_stats_ex_as_of(GETUTCDATE());
 GO
 
@@ -806,8 +809,8 @@ return (
 );
 GO
 
-
-CREATE_OR_ALTER     FUNCTION qpi.compare_query_plans (@plan_id1 int, @plan_id2 int)
+CREATE_OR_ALTER
+FUNCTION qpi.compare_query_plans (@plan_id1 int, @plan_id2 int)
 returns table
 return (
 	select a.[key], a.value value1, b.value value2
@@ -834,7 +837,8 @@ GO
 
 GO
 
-CREATE_OR_ALTER   function qpi.query_plan_exec_stats_diff_on_intervals (@date1 datetime2, @date2 datetime2)
+CREATE_OR_ALTER
+FUNCTION qpi.query_plan_exec_stats_diff_on_intervals (@date1 datetime2, @date2 datetime2)
 returns table
 return (
 	select baseline = convert(varchar(16), rsi1.start_time, 20), interval = convert(varchar(16), rsi2.start_time, 20),
@@ -895,7 +899,9 @@ GO
 CREATE INDEX ix_file_snapshot_interval_history
 	ON qpi.dm_io_virtual_file_stats_snapshot_history(end_time);
 GO
-CREATE_OR_ALTER PROCEDURE qpi.snapshot_file_stats @title nvarchar(200) = NULL, @db_name sysname = null, @file_name sysname = null
+
+CREATE_OR_ALTER
+PROCEDURE qpi.snapshot_file_stats @title nvarchar(200) = NULL, @db_name sysname = null, @file_name sysname = null
 AS BEGIN
 MERGE qpi.dm_io_virtual_file_stats_snapshot AS Target
 USING (
@@ -1068,7 +1074,6 @@ AS
 SELECT DISTINCT snapshot_name = title, start_time, end_time
 FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
 GO
-
 #endif
 
 #ifndef AZURE

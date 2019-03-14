@@ -568,7 +568,10 @@ VIEW qpi.wait_stats
 AS SELECT * FROM qpi.wait_stats_ex
 WHERE category_id IS NOT NULL
 GO
-CREATE   FUNCTION qpi.query_plan_exec_stats_as_of(@date datetime2)
+-- END wait statistics
+
+CREATE
+FUNCTION qpi.query_plan_exec_stats_as_of(@date datetime2)
 returns table
 as return (
 select	t.query_text_id, q.query_id,
@@ -595,23 +598,22 @@ from sys.query_store_query_text t
 	join sys.query_store_runtime_stats_interval rsi
 			on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
 where (@date is null or @date between rsi.start_time and rsi.end_time)
-
 );
 GO
--- END wait statistics
 
-
-CREATE  VIEW qpi.query_plan_exec_stats
+CREATE
+VIEW qpi.query_plan_exec_stats
 AS SELECT * FROM qpi.query_plan_exec_stats_as_of(GETUTCDATE());
 GO
 
-CREATE  VIEW qpi.query_plan_exec_stats_all
+CREATE
+VIEW qpi.query_plan_exec_stats_all
 AS SELECT * FROM qpi.query_plan_exec_stats_as_of(NULL);
 GO
 
-
 -- Returns all query plan statistics without currently running values.
-CREATE    function qpi.query_plan_exec_stats_ex_as_of(@date datetime2)
+CREATE
+FUNCTION qpi.query_plan_exec_stats_ex_as_of(@date datetime2)
 returns table
 as return (
 select	q.query_id,
@@ -629,7 +631,8 @@ where @date is null or @date between rsi.start_time and rsi.end_time
 );
 GO
 
-CREATE    VIEW qpi.query_plan_exec_stats_ex
+CREATE
+VIEW qpi.query_plan_exec_stats_ex
 AS SELECT * FROM qpi.query_plan_exec_stats_ex_as_of(GETUTCDATE());
 GO
 
@@ -708,8 +711,8 @@ return (
 );
 GO
 
-
-CREATE      FUNCTION qpi.compare_query_plans (@plan_id1 int, @plan_id2 int)
+CREATE
+FUNCTION qpi.compare_query_plans (@plan_id1 int, @plan_id2 int)
 returns table
 return (
 	select a.[key], a.value value1, b.value value2
@@ -736,7 +739,8 @@ GO
 
 GO
 
-CREATE    function qpi.query_plan_exec_stats_diff_on_intervals (@date1 datetime2, @date2 datetime2)
+CREATE
+FUNCTION qpi.query_plan_exec_stats_diff_on_intervals (@date1 datetime2, @date2 datetime2)
 returns table
 return (
 	select baseline = convert(varchar(16), rsi1.start_time, 20), interval = convert(varchar(16), rsi2.start_time, 20),
@@ -793,7 +797,9 @@ GO
 CREATE INDEX ix_file_snapshot_interval_history
 	ON qpi.dm_io_virtual_file_stats_snapshot_history(end_time);
 GO
-CREATE  PROCEDURE qpi.snapshot_file_stats @title nvarchar(200) = NULL, @db_name sysname = null, @file_name sysname = null
+
+CREATE
+PROCEDURE qpi.snapshot_file_stats @title nvarchar(200) = NULL, @db_name sysname = null, @file_name sysname = null
 AS BEGIN
 MERGE qpi.dm_io_virtual_file_stats_snapshot AS Target
 USING (
@@ -966,7 +972,6 @@ AS
 SELECT DISTINCT snapshot_name = title, start_time, end_time
 FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
 GO
-
 
 
 

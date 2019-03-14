@@ -594,7 +594,7 @@ select
 		params = QUERYPARAM(t.query_sql_text),
 		category = ws.wait_category_desc, 
 		wait_time_ms = CAST(ROUND(ws.avg_query_wait_time_ms, 1) AS NUMERIC(12,1)),
-		q.query_id, ws.plan_id, ws.execution_type_desc, 
+		t.query_text_id, q.query_id, ws.plan_id, ws.execution_type_desc, 
 		rsi.start_time, rsi.end_time,
 		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
 		ws.runtime_stats_interval_id, ws.wait_stats_id, q.query_hash
@@ -620,12 +620,13 @@ as return (
 		text = min(text),
 		params = min(params),
 		category, wait_time_ms = sum(wait_time_ms),
+		query_text_id, 
 		query_id,
 		execution_type_desc,
 		start_time = min(start_time), end_time = min(end_time),
 		interval_mi = min(interval_mi)
 from qpi.query_plan_wait_stats_as_of(@date)
-group by query_id, category, execution_type_desc
+group by query_id, query_text_id, category, execution_type_desc
 );
 go
 

@@ -25,15 +25,15 @@ Let's start with some common examples of the queries that I use.
 
 Getting information abouth your workload:
 ```
-select * from qpi.queries; -- All recorded queries in Query Store
+select * from qpi.db_queries; -- All database queries recorded in Query Store
 
-select * from qpi.dm_queries;           -- Currently running queries
-select * from qpi.dm_bre;               -- Active Backup/Restore requests
-select * from qpi.dm_blocked_queries;   -- Information about the currently blocked queries
-select * from qpi.dm_query_locks;       -- Information about the locks that the queries are holding
+select * from qpi.queries;           -- Currently running queries
+select * from qpi.bre;               -- Active Backup/Restore requests
+select * from qpi.blocked_queries;   -- Information about the currently blocked queries
+select * from qpi.query_locks;       -- Information about the locks that the queries are holding
 
-select * from qpi.dm_cpu_usage; --  Information about CPU usage.
-select * from qpi.dm_mem_usage; --  Information about memory usage.
+select * from qpi.cpu_usage; --  Information about CPU usage.
+select * from qpi.mem_usage; --  Information about memory usage.
 ```
 
 Getting the information about the system performance:

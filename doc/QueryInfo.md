@@ -8,9 +8,9 @@ This library provides wrapper views that are using Query Store views, so Query S
 QPI library enables you to easily get information about the queries that have been executing. In order to get the information about the particular queries, you can use the following view:
 ```
 SELECT *
-FROM qpi.queries;
+FROM qpi.db_queries;
 ```
-`qpi.queries` view returns the following information:
+`qpi.db_queries` view returns the following information:
 
 | Column | Description |
 | --- | --- |
@@ -23,20 +23,20 @@ FROM qpi.queries;
 In order to get the information about the queries including context settings you can use the following query:
 ```
 SELECT *
-FROM qpi.queries_ex q
+FROM qpi.db_queries_ex q
 ```
 
 This query will return the same information as the previous one, but it will also include context settings options. Function `qpi.decode_options( set_options )` will decode context settings options.
 
 ## Query texts
 
-`qpi.query_texts` view returns information about all know query texts that are executed in the past:
+`qpi.db_query_texts` view returns information about all know query texts that are executed in the past:
 
 ```
 SELECT *
-FROM qpi.query_texts;
+FROM qpi.db_query_texts;
 ```
-`qpi.query_texts` view returns the following information:
+`qpi.db_query_texts` view returns the following information:
 
 | Column | Description |
 | --- | --- |
@@ -49,21 +49,21 @@ FROM qpi.query_texts;
 
 ## Runtime query information
 
-**QPI** library enables you to get the list of currently running queries using `qpi.dm_queries` view:
+**QPI** library enables you to get the list of currently running queries using `qpi.queries` view:
 ```
 SELECT *
-FROM qpi.dm_queries;
+FROM qpi.queries;
 ```
 
 You can also find lock aquired by the currently executing queries using `qpi.dm_query_locks` view:
 ```
 SELECT *
-FROM qpi.dm_query_locks;
+FROM qpi.query_locks;
 ```
 
-`qpi.dm_blocked_queries` view enables you to find all currently blocked queries, sessions that blocked them and (probably) the query that is blocking the current query.
+`qpi.blocked_queries` view enables you to find all currently blocked queries, sessions that blocked them and (probably) the query that is blocking the current query.
 
 ```
 SELECT *
-FROM qpi.dm_blocked_queries;
+FROM qpi.blocked_queries;
 ```

@@ -9,18 +9,18 @@ FROM qpi.sys_info;
 ```
 This view will return you number of CPU and memory that you have on your SQL Server Instance.
 
-You can get more information about the resources that your SQL Server Database Engine is using using `qpi.dm_cpu_usage` and `qpi.dm_mem_usage` views:
+You can get more information about the resources that your SQL Server Database Engine is using using `qpi.cpu_usage` and `qpi.mem_usage` views:
 ```
-SELECT * FROM qpi.dm_cpu_usage
-SELECT * FROM qpi.dm_mem_usage
-SELECT * FROM qpi.dm_mem_plan_cache_info
+SELECT * FROM qpi.cpu_usage
+SELECT * FROM qpi.mem_usage
+SELECT * FROM qpi.mem_plan_cache_info
 ```
 
-The view `qpi.dm_mem_plan_cache_info` returns detailed information about th ememory usage in plan cache.
+The view `qpi.mem_plan_cache_info` returns detailed information about th ememory usage in plan cache.
 
-Then you can find how much memory is assigned to individual databases using `qpi.dm_db_mem_usage` view:
+Then you can find how much memory is assigned to individual databases using `qpi.db_mem_usage` view:
 ```
 SELECT *
-FROM qpi.dm_db_mem_usage;
+FROM qpi.db_mem_usage;
 ```
 This view will return number of pages in buffer pool for each database and percentage of buffer pool that every database uses.

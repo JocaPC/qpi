@@ -6,22 +6,22 @@ Query performance insights (QPI) library provides various views and functions th
 
 QPI library enables you to easily find basic system information that describe your SQL Server instance. This library contains views that you can use to find number of CPU, size of memory, information about files, using the following views: 
  - `qpi.sys_info` returns system information (number of cores, available memory)
- - `qpi.dm_cpu_usage` - returns information about the CPU usage.
- - `qpi.dm_mem_usage` - returns information about the memory usage.
- - `qpi.dm_db_mem_usage` - returns information about the memory usage in database.
- - `qpi.dm_mem_plan_cache_info` - returns information about the memory usage in plan cache.
+ - `qpi.cpu_usage` - returns information about the CPU usage.
+ - `qpi.mem_usage` - returns information about the memory usage.
+ - `qpi.db_mem_usage` - returns information about the memory usage in database.
+ - `qpi.mem_plan_cache_info` - returns information about the memory usage in plan cache.
 
 Find more information in [system information page](doc/SystemInfo.md).
 
 ## Queries
 
 QPI library enables you to find information about the queries that are executed on your SQL Server Database Engine using the following views/functions:
- - `qpi.queries` - returns the queries that are executed in SQL Server Database Engine.
- - `qpi.queries_ex` - returns the queries that are executed in SQL Server Database Engine including information about context parameters.
- - `qpi.dm_queries` - returns the currently executing queries.
- - `qpi.query_texts` - returns the query texts that are executed in SQL Server Database Engine.
- - `qpi.dm_blocked_queries` - returns the currently blocked queries.
- - `qpi.dm_query_locks` - returns the locks obtained by queries.
+ - `qpi.db_queries` - returns the queries that are executed in SQL Server Database Engine.
+ - `qpi.db_queries_ex` - returns the queries that are executed in SQL Server Database Engine including information about context parameters.
+ - `qpi.queries` - returns the currently executing queries.
+ - `qpi.db_query_texts` - returns the query texts that are executed in SQL Server Database Engine.
+ - `qpi.blocked_queries` - returns the currently blocked queries.
+ - `qpi.query_locks` - returns the locks obtained by queries.
 
  Find more information in [query information page](doc/QueryInfo.md).
 
@@ -29,22 +29,22 @@ QPI library enables you to find information about the queries that are executed 
 
 QPI library enables you to find statistics that can tell you more about query performance using the following views/functions:
 
- - `qpi.query_exec_stats` - returns summarized executtion and wait statistics about the queries.
- - `qpi.query_exec_stats` - returns execution statistics about the queries.
- - `qpi.query_exec_stats_all`
- - `qpi.query_exec_stats_as_of`
- - `qpi.query_plan_exec_stats` - returns execution statistics about the query plans.
- - `qpi.query_plan_exec_stats_ex` - returns execution statistics about the query plans including the plan SET options.
- - `qpi.query_plan_exec_stats_all` - returns all known execution statistics about any query plans in the past.
- - `qpi.query_plan_exec_stats_as_of ` - returns execution statistics about the query plans at the specified point in time in the past.
- - `qpi.dm_query_stats` - returns execution stats about the currently executing queries.
+ - `qpi.db_query_stats` - returns summarized executtion and wait statistics about the queries.
+ - `qpi.db_query_exec_stats` - returns execution statistics about the queries.
+ - `qpi.db_query_exec_stats_history`
+ - `qpi.db_query_exec_stats_as_of`
+ - `qpi.db_query_plan_exec_stats` - returns execution statistics about the query plans.
+ - `qpi.db_query_plan_exec_stats_ex` - returns execution statistics about the query plans including the plan SET options.
+ - `qpi.db_query_plan_exec_stats_history` - returns all known execution statistics about any query plans in the past.
+ - `qpi.db_query_plan_exec_stats_as_of ` - returns execution statistics about the query plans at the specified point in time in the past.
+ - `qpi.db_query_stats` - returns execution stats about the currently executing queries.
  - `qpi.wait_stats` - returns information about wait statistics.
  - `qpi.wait_stats_as_of` - returns information about wait statistics at the specified point in time in the past.
  - `qpi.snapshot_wait_stats` - the procedure that takes a snapshot of [sys.dm_os_wait_stats](https://docs.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/sys-dm-os-wait-stats-transact-sql?view=sql-server-2017) and clears the wait stats.
- - `qpi.query_wait_stats` - returns the wait statistics about the queries from Query Store.
- - `qpi.query_wait_stats_as_of` - returns the wait statistics about the queries from Query Store at the specified point in time in the past.
- - `qpi.query_plan_wait_stats` - returns the wait statistics about the query plans from Query Store.
- - `qpi.query_plan_wait_stats_as_of` - returns the wait statistics about the query plans from Query Store at the specified point in time in the past.
+ - `qpi.db_query_wait_stats` - returns the wait statistics about the queries from Query Store.
+ - `qpi.db_query_wait_stats_as_of` - returns the wait statistics about the queries from Query Store at the specified point in time in the past.
+ - `qpi.db_query_plan_wait_stats` - returns the wait statistics about the query plans from Query Store.
+ - `qpi.db_query_plan_wait_stats_as_of` - returns the wait statistics about the query plans from Query Store at the specified point in time in the past.
  
 Find more information in [query performance page](doc/QueryStatistics.md).
 

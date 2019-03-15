@@ -80,7 +80,7 @@ SELECT 'DISABLE_DEF_CNST_CHK' = IIF( (1 & @options) = 1, 'ON', 'OFF' )
 )
 GO
 
-CREATE_OR_ALTER FUNCTION qpi.compare_context_settings (@ctx_id1 int, @ctx_id2 int)
+CREATE_OR_ALTER FUNCTION qpi.cmp_context_settings (@ctx_id1 int, @ctx_id2 int)
 returns table
 return (
 	select a.[key], a.value value1, b.value value2
@@ -107,7 +107,7 @@ return (
 );
 
 GO
-CREATE_OR_ALTER VIEW qpi.queries
+CREATE_OR_ALTER VIEW qpi.db_queries
 as
 select	text = QUERYTEXT(query_sql_text),
 		params = QUERYPARAM(query_sql_text),
@@ -116,43 +116,43 @@ from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
 GO
 
-CREATE_OR_ALTER VIEW qpi.queries_ex
+CREATE_OR_ALTER VIEW qpi.db_queries_ex
 as
 select	q.text, q.params, q.query_text_id, query_id, q.context_settings_id, q.query_hash,
 		o.*		
-FROM qpi.queries q
+FROM qpi.db_queries q
 		JOIN sys.query_context_settings ctx
 			ON q.context_settings_id = ctx.context_settings_id
 			CROSS APPLY qpi.decode_options(ctx.set_options) o
 GO
 
-CREATE_OR_ALTER VIEW qpi.query_texts
+CREATE_OR_ALTER VIEW qpi.db_query_texts
 as
 select	q.text, q.params, q.query_text_id, queries = QUERYLIST(query_id,context_settings_id)
-from qpi.queries q
+from qpi.db_queries q
 group by q.text, q.params, q.query_text_id
 GO
 
-CREATE_OR_ALTER VIEW qpi.query_plans
+CREATE_OR_ALTER VIEW qpi.db_query_plans
 as
 select	q.text, q.params, q.query_text_id, p.plan_id, p.query_id,
 		p.compatibility_level, p.query_plan_hash, p.count_compiles,
 		p.is_parallel_plan, p.is_forced_plan, p.query_plan
 from sys.query_store_plan p
-	join qpi.queries q 
+	join qpi.db_queries q 
 		on p.query_id = q.query_id;
 GO
 
-CREATE_OR_ALTER VIEW qpi.query_plans_ex
+CREATE_OR_ALTER VIEW qpi.db_query_plans_ex
 as
 select	q.text, q.params, q.query_text_id, p.*
 from sys.query_store_plan p
-	join qpi.queries q 
+	join qpi.db_queries q 
 		on p.query_id = q.query_id;
 GO
 
 -- The list of currently executing queries that are probably not in Query Store.
-CREATE_OR_ALTER VIEW qpi.dm_queries
+CREATE_OR_ALTER VIEW qpi.queries
 AS
 SELECT  
 		text =  QUERYTEXT(text),
@@ -178,10 +178,10 @@ SELECT
 		end_time = null
 FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
-WHERE text NOT LIKE '%qpi.dm_queries%'
+WHERE text NOT LIKE '%qpi.queries%'
 GO
 
-CREATE_OR_ALTER VIEW qpi.dm_bre
+CREATE_OR_ALTER VIEW qpi.bre
 AS
 SELECT r.command,percent_complete = CONVERT(NUMERIC(6,2),r.percent_complete)
 ,CONVERT(VARCHAR(20),DATEADD(ms,r.estimated_completion_time,GetDate()),20) AS ETA, /* @note - MUST retain GETDATE() because sys.dm_exec_requests don't uses UTC TIME */
@@ -193,7 +193,7 @@ FROM sys.dm_exec_sql_text(sql_handle))) AS query,r.session_id
 FROM sys.dm_exec_requests r WHERE command IN ('RESTORE DATABASE','BACKUP DATABASE','BACKUP LOG','RESTORE LOG') 
 GO
 
-CREATE_OR_ALTER VIEW qpi.dm_query_locks
+CREATE_OR_ALTER VIEW qpi.query_locks
 AS
 SELECT   
 	text = q.text,
@@ -210,7 +210,7 @@ SELECT
 	locked_resource_db = DB_NAME(tl.resource_database_id),
 	q.request_id,
 	tl.resource_associated_entity_id
-FROM qpi.dm_queries q
+FROM qpi.queries q
 	JOIN sys.dm_tran_locks as tl
 		ON q.session_id = tl.request_session_id and q.request_id = tl.request_request_id 
 		LEFT JOIN 
@@ -232,36 +232,7 @@ GO
 --	Query performance statistics.
 ------------------------------------------------------------------------------------
 
--- Returns the stats for the currently running queries.
-CREATE_OR_ALTER VIEW qpi.dm_query_stats
-AS
-SELECT  
-		text =  QUERYTEXT(t.text), 
-		params = QUERYPARAM(t.text),
-		execution_type_desc = status COLLATE Latin1_General_CS_AS,
-		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
-		elapsed_time_s = total_elapsed_time /1000.0, 
-		cpu_time_s = cpu_time /1000.0, 		 
-		logical_io_reads = logical_reads,
-		logical_io_writes = writes,
-		physical_io_reads = reads, 
-		num_physical_io_reads = NULL, 
-		clr_time = NULL,
-		dop,
-		row_count, 
-		memory_mb = granted_query_memory *8 /1024, 
-		log_bytes = NULL,
-		tempdb_space = NULL,
-		query_text_id = NULL, query_id = NULL, plan_id = NULL,
-		database_id, connection_id, session_id, request_id, command,
-		interval_mi = null,
-		start_time,
-		end_time = null
-FROM    sys.dm_exec_requests
-		CROSS APPLY sys.dm_exec_sql_text(sql_handle) t
-GO
-
-CREATE_OR_ALTER VIEW qpi.dm_blocked_queries
+CREATE_OR_ALTER VIEW qpi.blocked_queries
 AS
 SELECT   
 	text = blocked.text,
@@ -281,7 +252,7 @@ SELECT
 	tl.request_status,
 	tl.request_owner_type,
 	w.resource_description
-FROM qpi.dm_queries blocked
+FROM qpi.queries blocked
 	INNER JOIN sys.dm_os_waiting_tasks w
 	ON blocked.session_id = w.session_id 
 		INNER JOIN sys.dm_exec_connections conn
@@ -308,7 +279,7 @@ GO
 ---------------------------------------------------------------------------------------------------
 --	Wait statistics
 ---------------------------------------------------------------------------------------------------
-CREATE TABLE qpi.dm_os_wait_stats_snapshot
+CREATE TABLE qpi.os_wait_stats_snapshot
 	(
 	[category_id] tinyint NULL,
 	[wait_type] [nvarchar](60) NOT NULL,
@@ -321,10 +292,10 @@ CREATE TABLE qpi.dm_os_wait_stats_snapshot
 	end_time datetime2 GENERATED ALWAYS AS ROW END,
 	PERIOD FOR SYSTEM_TIME (start_time, end_time),
 	PRIMARY KEY (wait_type)  
- ) WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.dm_os_wait_stats_snapshot_history));
+ ) WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.os_wait_stats_snapshot_history));
 GO
 CREATE INDEX ix_dm_os_wait_stats_snapshot
-	ON qpi.dm_os_wait_stats_snapshot_history(end_time);
+	ON qpi.os_wait_stats_snapshot_history(end_time);
 GO
 
 CREATE_OR_ALTER FUNCTION qpi.__wait_stats_category_id(@wait_type varchar(128))
@@ -429,7 +400,7 @@ GO
 
 CREATE_OR_ALTER PROCEDURE qpi.snapshot_wait_stats @title nvarchar(200) = NULL
 AS BEGIN
-MERGE qpi.dm_os_wait_stats_snapshot AS Target
+MERGE qpi.os_wait_stats_snapshot AS Target
 USING (
 	SELECT *
 	FROM qpi.wait_stats_ex
@@ -479,7 +450,7 @@ select
 			max_wait_time_s = CAST(ROUND(max_wait_time_ms /1000.,1) AS NUMERIC(12,1)),
 			category_id,
 			snapshot_time = start_time
-from qpi.dm_os_wait_stats_snapshot for system_time all rsi
+from qpi.os_wait_stats_snapshot for system_time all rsi
 	cross apply qpi.__wait_stats_category(category_id) as c
 where @date is null or @date between rsi.start_time and rsi.end_time 
 );
@@ -598,12 +569,12 @@ WHERE category_id IS NOT NULL
 GO
 #ifndef SQL2016
 CREATE_OR_ALTER
-VIEW qpi.wait_stats_all
+VIEW qpi.wait_stats_history
 AS SELECT * FROM  qpi.wait_stats_as_of(null);
 GO
 
 CREATE_OR_ALTER
-function qpi.query_plan_wait_stats_as_of(@date datetime2)
+function qpi.db_query_plan_wait_stats_as_of(@date datetime2)
 	returns table
 as return (
 select	 
@@ -625,12 +596,12 @@ where @date is null or @date between rsi.start_time and rsi.end_time
 go
 
 CREATE_OR_ALTER
-VIEW qpi.query_plan_wait_stats
-AS SELECT * FROM  qpi.query_plan_wait_stats_as_of(GETUTCDATE());
+VIEW qpi.db_query_plan_wait_stats
+AS SELECT * FROM  qpi.db_query_plan_wait_stats_as_of(GETUTCDATE());
 GO
 
 CREATE_OR_ALTER
-function qpi.query_wait_stats_as_of(@date datetime2)
+function qpi.db_query_wait_stats_as_of(@date datetime2)
 	returns table
 as return (
 	select	
@@ -642,25 +613,25 @@ as return (
 		execution_type_desc,
 		start_time = min(start_time), end_time = min(end_time),
 		interval_mi = min(interval_mi)
-from qpi.query_plan_wait_stats_as_of(@date)
+from qpi.db_query_plan_wait_stats_as_of(@date)
 group by query_id, query_text_id, category, execution_type_desc
 );
 go
 
 CREATE_OR_ALTER
-VIEW qpi.query_wait_stats
-as select * from qpi.query_wait_stats_as_of(GETUTCDATE())
+VIEW qpi.db_query_wait_stats
+as select * from qpi.db_query_wait_stats_as_of(GETUTCDATE())
 go
 
 CREATE_OR_ALTER
-VIEW qpi.query_wait_stats_all
-as select * from qpi.query_wait_stats_as_of(null)
+VIEW qpi.db_query_wait_stats_history
+as select * from qpi.db_query_wait_stats_as_of(null)
 go
 #endif
 -- END wait statistics
 
 CREATE_OR_ALTER
-FUNCTION qpi.query_plan_exec_stats_as_of(@date datetime2)
+FUNCTION qpi.db_query_plan_exec_stats_as_of(@date datetime2)
 returns table
 as return (
 select	t.query_text_id, q.query_id, 
@@ -696,18 +667,18 @@ where (@date is null or @date between rsi.start_time and rsi.end_time)
 GO
 
 CREATE_OR_ALTER
-VIEW qpi.query_plan_exec_stats
-AS SELECT * FROM qpi.query_plan_exec_stats_as_of(GETUTCDATE());
+VIEW qpi.db_query_plan_exec_stats
+AS SELECT * FROM qpi.db_query_plan_exec_stats_as_of(GETUTCDATE());
 GO
 
 CREATE_OR_ALTER
-VIEW qpi.query_plan_exec_stats_all
-AS SELECT * FROM qpi.query_plan_exec_stats_as_of(NULL);
+VIEW qpi.db_query_plan_exec_stats_history
+AS SELECT * FROM qpi.db_query_plan_exec_stats_as_of(NULL);
 GO
 
 -- Returns all query plan statistics without currently running values.
 CREATE_OR_ALTER
-FUNCTION qpi.query_plan_exec_stats_ex_as_of(@date datetime2)
+FUNCTION qpi.db_query_plan_exec_stats_ex_as_of(@date datetime2)
 returns table
 as return (
 select	q.query_id, 
@@ -726,14 +697,14 @@ where @date is null or @date between rsi.start_time and rsi.end_time
 GO
 
 CREATE_OR_ALTER
-VIEW qpi.query_plan_exec_stats_ex
-AS SELECT * FROM qpi.query_plan_exec_stats_ex_as_of(GETUTCDATE());
+VIEW qpi.db_query_plan_exec_stats_ex
+AS SELECT * FROM qpi.db_query_plan_exec_stats_ex_as_of(GETUTCDATE());
 GO
 
 -- the most important view: query statistics:
 GO
 -- Returns statistics about all queries as of specified time.
-CREATE_OR_ALTER FUNCTION qpi.query_exec_stats_as_of(@date datetime2)
+CREATE_OR_ALTER FUNCTION qpi.db_query_exec_stats_as_of(@date datetime2)
 returns table
 return (
 
@@ -753,7 +724,7 @@ SELECT	qps.query_id, execution_type_desc,
 #endif
 		start_time = MIN(start_time),
 		interval_mi = MIN(interval_mi)
-FROM qpi.query_plan_exec_stats_as_of(@date) qps 
+FROM qpi.db_query_plan_exec_stats_as_of(@date) qps 
 GROUP BY query_id, execution_type_desc
 )
 SELECT  text =  QUERYTEXT(t.query_sql_text),
@@ -769,20 +740,20 @@ FROM query_stats qs
 )
 GO
 
-CREATE_OR_ALTER VIEW qpi.query_exec_stats
-AS SELECT * FROM  qpi.query_exec_stats_as_of(GETUTCDATE());
+CREATE_OR_ALTER VIEW qpi.db_query_exec_stats
+AS SELECT * FROM  qpi.db_query_exec_stats_as_of(GETUTCDATE());
 GO
-CREATE_OR_ALTER VIEW qpi.query_exec_stats_all
-AS SELECT * FROM  qpi.query_exec_stats_as_of(NULL);
+CREATE_OR_ALTER VIEW qpi.db_query_exec_stats_history
+AS SELECT * FROM  qpi.db_query_exec_stats_as_of(NULL);
 GO
 
-CREATE_OR_ALTER VIEW qpi.query_stats
+CREATE_OR_ALTER VIEW qpi.db_query_stats
 AS
 #ifndef SQL2016
 WITH ws AS(
 	SELECT query_id, start_time, execution_type_desc,
 			wait_time_ms = SUM(wait_time_ms)
-	FROM qpi.query_wait_stats
+	FROM qpi.db_query_wait_stats
 	GROUP BY query_id, start_time, execution_type_desc
 )
 #endif
@@ -792,7 +763,7 @@ SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, du
  log_bytes_used_kb,
 #endif
  logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time
-FROM qpi.query_exec_stats qes
+FROM qpi.db_query_exec_stats qes
 #ifndef SQL2016
 	LEFT JOIN ws ON qes.query_id = ws.query_id
 				AND qes.start_time = ws.start_time				
@@ -802,7 +773,7 @@ GO
 
 --- Query comparison
 
-CREATE_OR_ALTER   function qpi.compare_query_exec_stats_on_intervals (@query_id int, @date1 datetime2, @date2 datetime2)
+CREATE_OR_ALTER   function qpi.cmp_query_exec_stats (@query_id int, @date1 datetime2, @date2 datetime2)
 returns table
 return (
 	select a.[key], a.value value1, b.value value2
@@ -810,7 +781,7 @@ return (
 	(select [key], value
 	from openjson(
 	(select *
-		from qpi.query_exec_stats_as_of(@date1)
+		from qpi.db_query_exec_stats_as_of(@date1)
 		where query_id = @query_id
 		for json path, without_array_wrapper)
 	)) as a ([key], value)
@@ -818,7 +789,7 @@ return (
 	(select [key], value
 	from openjson(
 	(select *
-		from qpi.query_exec_stats_as_of(@date2)
+		from qpi.db_query_exec_stats_as_of(@date2)
 		where query_id = @query_id
 		for json path, without_array_wrapper)
 	)) as b ([key], value)
@@ -828,7 +799,7 @@ return (
 GO
 
 CREATE_OR_ALTER
-FUNCTION qpi.compare_query_plans (@plan_id1 int, @plan_id2 int)
+FUNCTION qpi.cmp_query_plans (@plan_id1 int, @plan_id2 int)
 returns table
 return (
 	select a.[key], a.value value1, b.value value2
@@ -853,10 +824,8 @@ return (
 );
 GO
 
-GO
-
 CREATE_OR_ALTER
-FUNCTION qpi.query_plan_exec_stats_diff_on_intervals (@date1 datetime2, @date2 datetime2)
+FUNCTION qpi.db_query_plan_exec_stats_diff (@date1 datetime2, @date2 datetime2)
 returns table
 return (
 	select baseline = convert(varchar(16), rsi1.start_time, 20), interval = convert(varchar(16), rsi2.start_time, 20),
@@ -890,7 +859,7 @@ GO
 ---------------------------------------------------------------------------------------------------
 -- www.sqlskills.com/blogs/paul/how-to-examine-io-subsystem-latencies-from-within-sql-server/
 ---------------------------------------------------------------------------------------------------
-CREATE TABLE qpi.dm_io_virtual_file_stats_snapshot (
+CREATE TABLE qpi.io_virtual_file_stats_snapshot (
 	[db_name] sysname NULL,
 	[database_id] [smallint] NOT NULL,
 	[file_name] [sysname] NOT NULL,
@@ -912,16 +881,16 @@ CREATE TABLE qpi.dm_io_virtual_file_stats_snapshot (
 	PERIOD FOR SYSTEM_TIME (start_time, end_time),
 	PRIMARY KEY (database_id, file_id),
 	INDEX UQ_snapshot_title UNIQUE (title, database_id, file_id)
- ) WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.dm_io_virtual_file_stats_snapshot_history));
+ ) WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.io_virtual_file_stats_snapshot_history));
 GO
 CREATE INDEX ix_file_snapshot_interval_history
-	ON qpi.dm_io_virtual_file_stats_snapshot_history(end_time);
+	ON qpi.io_virtual_file_stats_snapshot_history(end_time);
 GO
 
 CREATE_OR_ALTER
 PROCEDURE qpi.snapshot_file_stats @title nvarchar(200) = NULL, @db_name sysname = null, @file_name sysname = null
 AS BEGIN
-MERGE qpi.dm_io_virtual_file_stats_snapshot AS Target
+MERGE qpi.io_virtual_file_stats_snapshot AS Target
 USING (
 	SELECT db_name = DB_NAME(vfs.database_id),vfs.database_id,
 		file_name = [mf].[name],size_gb = 8 * mf.size /1024/ 1024,[vfs].[file_id],
@@ -956,6 +925,7 @@ INSERT (db_name,database_id,file_name,size_gb,[file_id],
 VALUES (Source.db_name,Source.database_id,Source.file_name,Source.size_gb,Source.[file_id],Source.[io_stall_read_ms],Source.[io_stall_write_ms],Source.[io_stall_queued_read_ms],Source.[io_stall_queued_write_ms],Source.[io_stall],Source.[num_of_bytes_read],Source.[num_of_bytes_written],Source.[num_of_reads],Source.[num_of_writes],TITLE(@title)); 
 END
 GO
+
 CREATE_OR_ALTER FUNCTION qpi.fn_file_stats(@database_id int, @end_date datetime2 = null, @milestone nvarchar(100) = null)
 RETURNS TABLE
 AS RETURN ( 
@@ -966,14 +936,14 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 			SELECT	s.database_id, [file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
 					[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
 					title, start_time, end_time
-			FROM qpi.dm_io_virtual_file_stats_snapshot for system_time as of @end_date s
+			FROM qpi.io_virtual_file_stats_snapshot for system_time as of @end_date s
 			WHERE @end_date is not null
 			AND (@database_id is null or s.database_id = @database_id)
 			UNION ALL
 			SELECT	database_id,[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
 					[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
 					title, start_time, end_time
-			FROM qpi.dm_io_virtual_file_stats_snapshot for system_time all as s
+			FROM qpi.io_virtual_file_stats_snapshot for system_time all as s
 			WHERE @milestone is not null
 			AND title = @milestone
 			AND (@database_id is null or s.database_id = @database_id)
@@ -1040,7 +1010,7 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 		interval_mi = DATEDIFF(minute, prev.start_time, cur.start_time),
 		[type] = mf.type_desc
 	FROM cur
-		JOIN qpi.dm_io_virtual_file_stats_snapshot for system_time all as prev 
+		JOIN qpi.io_virtual_file_stats_snapshot for system_time all as prev 
 			ON cur.file_id = prev.file_id
 			AND cur.database_id = prev.database_id
 			AND (
@@ -1090,7 +1060,7 @@ GO
 CREATE_OR_ALTER VIEW qpi.file_stats_snapshots
 AS
 SELECT DISTINCT snapshot_name = title, start_time, end_time
-FROM qpi.dm_io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
+FROM qpi.io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
 GO
 #endif
 
@@ -1149,7 +1119,7 @@ GO
 #endif
 
 #ifndef DB
-CREATE_OR_ALTER VIEW qpi.dm_cpu_usage
+CREATE_OR_ALTER VIEW qpi.cpu_usage
 AS
 SELECT
 	cpu_count,
@@ -1171,7 +1141,7 @@ SELECT
 GO      
 #endif
 
-CREATE_OR_ALTER VIEW qpi.dm_mem_plan_cache_info
+CREATE_OR_ALTER VIEW qpi.mem_plan_cache_info
 AS
 SELECT  cached_object = objtype,
         memory_gb = SUM(size_in_bytes /1024 /1024 /1024),
@@ -1180,7 +1150,7 @@ SELECT  cached_object = objtype,
     GROUP BY objtype
 GO
 
-CREATE_OR_ALTER VIEW qpi.dm_mem_usage
+CREATE_OR_ALTER VIEW qpi.mem_usage
 AS
 SELECT memory = REPLACE(type, 'MEMORYCLERK_', "") 
      , mem_gb = sum(pages_kb)/1024/1024
@@ -1194,7 +1164,7 @@ UNION ALL
 		mem_perc = 1;
 GO
 -- www.mssqltips.com/sqlservertip/2393/determine-sql-server-memory-use-by-database-and-object/
-CREATE_OR_ALTER VIEW qpi.dm_db_mem_usage
+CREATE_OR_ALTER VIEW qpi.db_mem_usage
 AS
 WITH src AS
 (
@@ -1219,7 +1189,7 @@ FROM src
 GO
 #ifndef SQL2016
 CREATE_OR_ALTER VIEW
-qpi.dm_recommendations
+qpi.recommendations
 AS
 SELECT	name, reason, score, 
 		[state] = JSON_VALUE(state, '$.currentValue'),
@@ -1320,7 +1290,7 @@ GO
 --				Performance counters
 ---------------------------------------------------------------------------------------------------
 
-CREATE TABLE qpi.dm_os_performance_counters_snapshot (
+CREATE TABLE qpi.os_performance_counters_snapshot (
 	[name] nvarchar(128) COLLATE Latin1_General_100_CI_AS NOT NULL,
 	[value] decimal NOT NULL,
 	[object] nvarchar(128) COLLATE Latin1_General_100_CI_AS NOT NULL,
@@ -1330,7 +1300,7 @@ CREATE TABLE qpi.dm_os_performance_counters_snapshot (
 	end_time datetime2 GENERATED ALWAYS AS ROW END,
 	PERIOD FOR SYSTEM_TIME (start_time, end_time),
 	PRIMARY KEY (type,name,object,instance_name)
- ) --WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.dm_os_performance_counters_snapshot_history));
+ ) --WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.os_performance_counters_snapshot_history));
 GO
 
 -- See for math: blogs.msdn.microsoft.com/psssql/2013/09/23/interpreting-the-counter-values-from-sys-dm_os_performance_counters/
@@ -1367,7 +1337,7 @@ select	name = pc.counter_name,
 		instance_name = pc.instance_name,
 		type = pc.cntr_type
 from sys.dm_os_performance_counters pc
-	join qpi.dm_os_performance_counters_snapshot prev
+	join qpi.os_performance_counters_snapshot prev
 		on pc.counter_name COLLATE Latin1_General_100_CI_AS = prev.name
 		and pc.object_name COLLATE Latin1_General_100_CI_AS = prev.object
 		and pc.instance_name COLLATE Latin1_General_100_CI_AS = prev.instance_name
@@ -1389,12 +1359,12 @@ from sys.dm_os_performance_counters A1
 		on rtrim(A1.counter_name) + ' base'  = B1.counter_name
 		and A1.instance_name = B1.instance_name
 		and A1.object_name = B1.object_name
-	join qpi.dm_os_performance_counters_snapshot A2
+	join qpi.os_performance_counters_snapshot A2
 		on A1.counter_name COLLATE Latin1_General_100_CI_AS = A2.name
 		and A1.object_name COLLATE Latin1_General_100_CI_AS = A2.object
 		and A1.instance_name COLLATE Latin1_General_100_CI_AS = A2.instance_name
 		and A1.cntr_type = A2.type
-	join qpi.dm_os_performance_counters_snapshot B2
+	join qpi.os_performance_counters_snapshot B2
 		on rtrim(A2.name) + ' base'  = B2.name	 
 		and A2.instance_name = B2.instance_name
 		and A2.name = B2.name
@@ -1426,7 +1396,7 @@ GO
 
 CREATE_OR_ALTER PROCEDURE qpi.snapshot_perf_counters
 AS BEGIN
-MERGE qpi.dm_os_performance_counters_snapshot AS Target
+MERGE qpi.os_performance_counters_snapshot AS Target
 USING (
 	SELECT object = object_name, name = counter_name, value = cntr_value, type = cntr_type,
 	instance_name

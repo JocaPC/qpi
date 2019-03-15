@@ -41,12 +41,27 @@ END
 /* Drop all tables */
 
 BEGIN TRY
+	EXEC('ALTER TABLE qpi.io_virtual_file_stats_snapshot 
+			SET (SYSTEM_VERSIONING = OFF)');
+END TRY BEGIN CATCH END CATCH;
+
+BEGIN TRY
 	EXEC('ALTER TABLE qpi.dm_io_virtual_file_stats_snapshot 
 			SET (SYSTEM_VERSIONING = OFF)');
 END TRY BEGIN CATCH END CATCH;
 
 BEGIN TRY
+	EXEC('ALTER TABLE qpi.os_performance_counters_snapshot 
+			SET (SYSTEM_VERSIONING = OFF)');
+END TRY BEGIN CATCH END CATCH;
+
+BEGIN TRY
 	EXEC('ALTER TABLE qpi.dm_os_performance_counters_snapshot 
+			SET (SYSTEM_VERSIONING = OFF)');
+END TRY BEGIN CATCH END CATCH;
+
+BEGIN TRY
+	EXEC('ALTER TABLE qpi.os_wait_stats_snapshot 
 			SET (SYSTEM_VERSIONING = OFF)');
 END TRY BEGIN CATCH END CATCH;
 

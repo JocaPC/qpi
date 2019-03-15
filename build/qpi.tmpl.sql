@@ -15,8 +15,8 @@
 --------------------------------------------------------------------------------
 SET QUOTED_IDENTIFIER OFF; -- Because I use "" as a string literal
 GO
-
-CREATE SCHEMA qpi;
+IF SCHEMA_ID('qpi') IS NULL
+	EXEC ('CREATE SCHEMA qpi');
 GO
 
 CREATE_OR_ALTER FUNCTION qpi.us2min(@microseconds bigint)
@@ -131,6 +131,14 @@ as
 select	q.text, q.params, q.query_text_id, queries = QUERYLIST(query_id,context_settings_id)
 from qpi.queries q
 group by q.text, q.params, q.query_text_id
+GO
+
+CREATE_OR_ALTER VIEW qpi.query_plans
+as
+select	q.text, q.params, q.query_text_id, p.*
+from sys.query_store_plan p
+	join qpi.queries q 
+		on p.query_id = q.query_id;
 GO
 
 -- The list of currently executing queries that are probably not in Query Store.
@@ -290,7 +298,6 @@ GO
 ---------------------------------------------------------------------------------------------------
 --	Wait statistics
 ---------------------------------------------------------------------------------------------------
-
 CREATE TABLE qpi.dm_os_wait_stats_snapshot
 	(
 	[category_id] tinyint NULL,

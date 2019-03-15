@@ -135,6 +135,16 @@ GO
 
 CREATE_OR_ALTER VIEW qpi.query_plans
 as
+select	q.text, q.params, q.query_text_id, p.plan_id, p.query_id,
+		p.compatibility_level, p.query_plan_hash, p.count_compiles,
+		p.is_parallel_plan, p.is_forced_plan, p.query_plan
+from sys.query_store_plan p
+	join qpi.queries q 
+		on p.query_id = q.query_id;
+GO
+
+CREATE_OR_ALTER VIEW qpi.query_plans_ex
+as
 select	q.text, q.params, q.query_text_id, p.*
 from sys.query_store_plan p
 	join qpi.queries q 

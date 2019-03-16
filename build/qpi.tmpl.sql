@@ -1229,6 +1229,25 @@ SELECT name =
 		details = CONCAT( 'You are using ' , used_gb,'GB out of ', total_gb, 'GB') 
 from qpi.volumes
 WHERE used_gb/total_gb > .8
+UNION ALL
+SELECT name = 'Reaching storage size limit on instance',
+		reason = 'STORAGE_LIMIT',
+		score = storage_usage_perc*storage_usage_perc,
+		[state] = NULL, script = NULL,
+		details = CONCAT( 'In 2 hours the instance will reach ' , CAST(storage_usage_perc AS NUMERIC(4,2)), '% of your storage - increase the instance storage now.') 
+from (
+select top 1 storage_usage_perc =
+(storage_space_used_mb +
+((storage_space_used_mb - lead (storage_space_used_mb, 100) over (order by start_time desc))
+	/
+DATEDIFF(mi, lead (start_time, 100) over (order by start_time desc), start_time))  * 120)
+/ reserved_storage_mb
+from master.sys.server_resource_stats
+where storage_space_used_mb > (.8 * reserved_storage_mb) -- ignore if curent storage is less than 80%
+order by start_time desc
+) a(storage_usage_perc)
+WHERE a.storage_usage_perc > .8
+
 #endif
 #endif
 GO

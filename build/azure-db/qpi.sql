@@ -904,6 +904,7 @@ SELECT	name, reason, score,
         script = JSON_VALUE(details, '$.implementationDetails.script'),
         details
 FROM sys.dm_db_tuning_recommendations
+GO
 ---------------------------------------------------------------------------------------------------------
 --			High availability
 ---------------------------------------------------------------------------------------------------------

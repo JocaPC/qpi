@@ -1187,10 +1187,21 @@ END)/1024
 FROM master.sys.master_files
 WHERE physical_name LIKE 'https:%') AS alloc(size_tb)
 WHERE alloc.size_tb > 30
+UNION ALL
+SELECT name =
+	 CASE CAST(volume_mount_point as CHAR(1))
+		WHEN 'C' THEN 'Reaching TempDB size limit on local storage.'
+		ELSE 'Reaching storage size limit on instance'
+	END,
+		reason = 'STORAGE_LIMIT',
+		score = used_gb/total_gb,
+		[state] = NULL, script = NULL,
+		details = CONCAT( 'You are using ' , used_gb,'GB out of ', total_gb, 'GB')
+from qpi.volumes
+WHERE used_gb/total_gb > .8
 
 
-
-
+GO
 ---------------------------------------------------------------------------------------------------------
 --			High availability
 ---------------------------------------------------------------------------------------------------------

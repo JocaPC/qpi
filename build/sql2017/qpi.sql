@@ -1169,10 +1169,7 @@ SELECT	name, reason, score,
 		[state] = JSON_VALUE(state, '$.currentValue'),
         script = JSON_VALUE(details, '$.implementationDetails.script'),
         details
-FROM sys.dm_db_tuning_recommendations;
-GO
-
-
+FROM sys.dm_db_tuning_recommendations
 ---------------------------------------------------------------------------------------------------------
 --			High availability
 ---------------------------------------------------------------------------------------------------------

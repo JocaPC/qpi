@@ -1,3 +1,4 @@
+#define GB(size) CAST(size * 8. / 1024 / 1024 AS decimal(12,4))
 #define TITLE(title)ISNULL(title, CONVERT(VARCHAR(30), GETDATE(), 20))
 #ifndef SQL2016
 #define CREATE_OR_ALTER CREATE OR ALTER
@@ -1195,8 +1196,29 @@ SELECT	name, reason, score,
 		[state] = JSON_VALUE(state, '$.currentValue'),
         script = JSON_VALUE(details, '$.implementationDetails.script'),
         details
-FROM sys.dm_db_tuning_recommendations;
-GO
+FROM sys.dm_db_tuning_recommendations
+#ifdef MI
+UNION ALL
+SELECT name = 'Remaining number of database files', 
+		reason = 'AZURE_STORAGE_35_TB_LIMIT',
+		score = alloc.size_tb/35.,
+		[state] = NULL, script = NULL,
+		details = CONCAT( 'You cannot create more than ', (35 - alloc.size_tb) * 8, ' database files.') 
+FROM
+( SELECT
+SUM(CASE WHEN GB(size) <= 128 THEN 128
+WHEN GB(size) > 128 AND GB(size) <= 256 THEN 256
+WHEN GB(size) > 256 AND GB(size) <= 512 THEN 512
+WHEN GB(size) > 512 AND GB(size) <= 1024 THEN 1024
+WHEN GB(size) > 1024 AND GB(size) <= 2048 THEN 2048
+WHEN GB(size) > 2048 AND GB(size) <= 4096 THEN 4096
+ELSE 8192
+END)/1024
+FROM master.sys.master_files
+WHERE physical_name LIKE 'https:%') AS alloc(size_tb)
+WHERE alloc.size_tb > 30
+#endif
+
 #endif
 
 ---------------------------------------------------------------------------------------------------------

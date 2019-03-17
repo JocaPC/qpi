@@ -1203,7 +1203,7 @@ SELECT name = 'Remaining number of database files',
 		reason = 'AZURE_STORAGE_35_TB_LIMIT',
 		score = alloc.size_tb/35.,
 		[state] = NULL, script = NULL,
-		details = CONCAT( 'You cannot create more than ', (35 - alloc.size_tb) * 8, ' database files.') 
+		details = CONCAT( 'You cannot create more than ', (35 - alloc.size_tb) * 8, ' additional database files.') 
 FROM
 ( SELECT
 SUM(CASE WHEN GB(size) <= 128 THEN 128

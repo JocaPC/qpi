@@ -182,6 +182,42 @@ FROM    sys.dm_exec_requests
 WHERE text NOT LIKE '%qpi.queries%'
 GO
 
+CREATE_OR_ALTER
+PROCEDURE qpi.force_db_plan @query_id int, @plan_id int = null, @hints nvarchar(4000) = null
+AS BEGIN
+	declare @guide sysname = CONCAT('FORCE', @query_id),
+			@sql nvarchar(max), 
+			@param nvarchar(max),
+			@exists bit;
+	select @sql = text, @param = TRIM('(' FROM params)
+	from qpi.db_queries
+	where query_id = @query_id;
+	select @guide = name, @exists = 1 from sys.plan_guides where query_text = @sql;
+	if (@exists = 1)
+		EXEC sp_control_plan_guide N'DROP', @guide;
+	
+	if(@plan_id is not null)
+		EXEC sp_query_store_force_plan @query_id, @plan_id;
+	else if (@hints is not null)
+	begin
+		EXEC sp_create_plan_guide @name = @guide,
+			@stmt = @sql,
+			@type = N'SQL',  
+			@module_or_batch = NULL,  
+			@params = @param,  
+			@hints = @hints;  
+	end
+END
+GO
+
+CREATE_OR_ALTER
+VIEW qpi.forced_db_queries
+AS
+	SELECT text, forced_plan_id = plan_id, hints = null from qpi.db_query_plans where is_forced_plan = 1
+	UNION ALL
+	SELECT text = query_text, forced_plan_id = null, hints FROM sys.plan_guides where is_disabled = 0
+GO
+
 CREATE_OR_ALTER VIEW qpi.bre
 AS
 SELECT r.command,percent_complete = CONVERT(NUMERIC(6,2),r.percent_complete)

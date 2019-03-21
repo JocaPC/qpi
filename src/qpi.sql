@@ -201,9 +201,9 @@ GO
 CREATE OR ALTER
 VIEW qpi.forced_db_queries
 AS
-	SELECT text, forced_plan_id = plan_id, hints = null from qpi.db_query_plans where is_forced_plan = 1
+	SELECT text = text COLLATE Latin1_General_100_CI_AS, forced_plan_id = plan_id, hints = null from qpi.db_query_plans where is_forced_plan = 1
 	UNION ALL
-	SELECT text = query_text, forced_plan_id = null, hints FROM sys.plan_guides where is_disabled = 0
+	SELECT text = query_text COLLATE Latin1_General_100_CI_AS, forced_plan_id = null, hints FROM sys.plan_guides where is_disabled = 0
 GO
 
 CREATE OR ALTER  VIEW qpi.bre

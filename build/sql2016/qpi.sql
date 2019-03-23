@@ -1068,21 +1068,21 @@ SELECT  cached_object = objtype,
     GROUP BY objtype
 GO
 
-CREATE  VIEW qpi.mem_usage
+CREATE  VIEW qpi.memory
 AS
-SELECT memory = REPLACE(type, 'MEMORYCLERK_', "")
-     , mem_gb = sum(pages_kb)/1024/1024
-	 , mem_perc = ROUND(sum(pages_kb)/1024.0/ qpi.memory_mb() ,1)
+SELECT memory = REPLACE([type], 'MEMORYCLERK_', "")
+     , mem_gb = CAST(sum(pages_kb)/1024.1/1024 AS NUMERIC(6,1))
+	 , mem_perc = CAST(sum(pages_kb)/10.24/ qpi.memory_mb() AS TINYINT)
    FROM sys.dm_os_memory_clerks
    GROUP BY type
-   HAVING sum(pages_kb) /1024 /1024 > 0
+   HAVING sum(pages_kb) /1024. /1024 > 0.25
 UNION ALL
 	SELECT memory = '_Total',
-		mem_gb = ROUND(qpi.memory_mb() /1024., 1),
+		mem_gb = CAST(ROUND(qpi.memory_mb() /1024., 1) AS NUMERIC(6,1)),
 		mem_perc = 1;
 GO
 -- www.mssqltips.com/sqlservertip/2393/determine-sql-server-memory-use-by-database-and-object/
-CREATE  VIEW qpi.db_mem_usage
+CREATE  VIEW qpi.db_memory_usage
 AS
 WITH src AS
 (

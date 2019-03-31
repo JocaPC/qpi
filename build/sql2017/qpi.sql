@@ -1197,10 +1197,23 @@ db_buffer_pages * 100.0 / (SELECT top 1 cntr_value
 )
 FROM src
 GO
-
 CREATE OR ALTER  VIEW
 qpi.recommendations
 AS
+SELECT
+name = 'HIGH_VLF_COUNT',
+reason = CAST(count(*) AS VARCHAR(6)) + ' VLF in ' + name + ' file',
+score = CAST(1-EXP(-count(*)/100.) AS NUMERIC(6,2))*100,
+[state] = null,
+script = CONCAT("USE [", DB_NAME(mf.database_id),"];DBCC SHRINKFILE (N'",name,"', 1, TRUNCATEONLY);"),
+details = (SELECT [file] = name, db = DB_NAME(mf.database_id), vlf_count = count(*), recommended_script = 'https://github.com/Microsoft/tigertoolbox/tree/master/Fixing-VLFs' FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+from sys.master_files mf
+cross apply sys.dm_db_log_info(mf.database_id) li
+where li.file_id = mf.file_id
+group by mf.database_id, mf.file_id, name
+having count(*) > 50
+
+UNION ALL
 SELECT	name, reason, score,
 		[state] = JSON_VALUE(state, '$.currentValue'),
         script = JSON_VALUE(details, '$.implementationDetails.script'),

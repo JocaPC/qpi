@@ -1224,20 +1224,34 @@ db_buffer_pages * 100.0 / (SELECT top 1 cntr_value
 )
 FROM src
 GO
-#ifndef SQL2016
 CREATE_OR_ALTER VIEW
 qpi.recommendations
 AS
+SELECT 
+name = 'HIGH_VLF_COUNT',
+reason = CAST(count(*) AS VARCHAR(6)) + ' VLF in ' + name + ' file',
+score = CAST(1-EXP(-count(*)/100.) AS NUMERIC(6,2))*100,
+[state] = null,
+script = CONCAT("USE [", DB_NAME(mf.database_id),"];DBCC SHRINKFILE (N'",name,"', 1, TRUNCATEONLY);"),
+details = (SELECT [file] = name, db = DB_NAME(mf.database_id), vlf_count = count(*), recommended_script = 'https://github.com/Microsoft/tigertoolbox/tree/master/Fixing-VLFs' FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+from sys.master_files mf
+cross apply sys.dm_db_log_info(mf.database_id) li
+where li.file_id = mf.file_id
+group by mf.database_id, mf.file_id, name
+having count(*) > 50
+#ifndef SQL2016
+UNION ALL
 SELECT	name, reason, score, 
 		[state] = JSON_VALUE(state, '$.currentValue'),
         script = JSON_VALUE(details, '$.implementationDetails.script'),
         details
 FROM sys.dm_db_tuning_recommendations
+#endif
 #ifdef MI
 UNION ALL
-SELECT name = 'Remaining number of database files', 
-		reason = 'AZURE_STORAGE_35_TB_LIMIT',
-		score = alloc.size_tb/35.,
+SELECT	name = 'AZURE_STORAGE_35_TB_LIMIT', 
+		reason = 'Remaining number of database files is low',
+		score = (alloc.size_tb/35.)*100,
 		[state] = NULL, script = NULL,
 		details = CONCAT( 'You cannot create more than ', (35 - alloc.size_tb) * 8, ' additional database files.') 
 FROM
@@ -1268,7 +1282,7 @@ WHERE used_gb/total_gb > .8
 UNION ALL
 SELECT name = 'Reaching storage size limit on instance',
 		reason = 'STORAGE_LIMIT',
-		score = storage_usage_perc*storage_usage_perc,
+		score = 100*storage_usage_perc*storage_usage_perc,
 		[state] = NULL, script = NULL,
 		details = CONCAT( 'In 2 hours the instance will reach ' , CAST(storage_usage_perc AS NUMERIC(4,2)), '% of your storage - increase the instance storage now.') 
 from (
@@ -1283,8 +1297,6 @@ where storage_space_used_mb > (.8 * reserved_storage_mb) -- ignore if curent sto
 order by start_time desc
 ) a(storage_usage_perc)
 WHERE a.storage_usage_perc > .8
-
-#endif
 #endif
 GO
 ---------------------------------------------------------------------------------------------------------

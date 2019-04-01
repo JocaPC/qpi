@@ -1142,34 +1142,28 @@ CREATE TABLE qpi.os_performance_counters_snapshot (
 GO
 
 -- See for math: blogs.msdn.microsoft.com/psssql/2013/09/23/interpreting-the-counter-values-from-sys-dm_os_performance_counters/
-CREATE  VIEW
-qpi.perf_counters
-AS
-SELECT * FROM qpi.fn_perf_counters(NULL);
-GO
-
 CREATE  FUNCTION
 qpi.fn_perf_counters(@as_of DATETIME2)
 RETURNS TABLE
-AS (
+RETURN (
 WITH
 perf_counters AS
 (
-	select counter_name, cntr_value, object_name, instance_name, cntr_type, start_time = GETUTCDATE()
+	select counter_name, cntr_value, object_name, instance_name, cntr_type, start_time = '9999-12-31 23:59:59.9999999' -- #hack used to join with prev.end_time
 	from sys.dm_os_performance_counters
 	WHERE @as_of is null
 	union all
-	select	counter_name = name, cntr_value = value, object_name = name, instance_name, cntr_type = type, start_time
+	select	counter_name = name, cntr_value = value, object_name = object, instance_name, cntr_type = type, start_time
 	from qpi.os_performance_counters_snapshot for system_time as of @as_of
 	WHERE @as_of is not null
 ),
 perf_counters_prev AS
 (
-	select	counter_name = name, cntr_value = value, object_name = name, instance_name, cntr_type = type, start_time, end_time
+	select	counter_name = name, cntr_value = value, object_name = object, instance_name, cntr_type = type, start_time, end_time
 	from qpi.os_performance_counters_snapshot
 	WHERE @as_of is null
 	union all
-	select	counter_name = name, cntr_value = value, object_name = name, instance_name, cntr_type = type, start_time, end_time
+	select	counter_name = name, cntr_value = value, object_name = object, instance_name, cntr_type = type, start_time, end_time
 	from qpi.os_performance_counters_snapshot for system_time as of @as_of
 	WHERE @as_of is not null
 ),
@@ -1208,7 +1202,7 @@ from (
 union all
 -- PERF_COUNTER_BULK_COUNT
 select	name = pc.counter_name,
-		value = (pc.cntr_value-prev.cntr_value)/(DATEDIFF(millisecond, prev.start_time, prev.end_time) / 1000.),
+		value = (pc.cntr_value-prev.cntr_value)/(DATEDIFF_BIG(millisecond, prev.start_time, prev.end_time) / 1000.),
 		object = pc.object_name,
 		instance_name = pc.instance_name,
 		type = pc.cntr_type
@@ -1259,6 +1253,12 @@ SELECT	pc.name, pc.value, pc.type,
 FROM perf_counter_calculation pc
 WHERE value > 0
 )
+GO
+
+CREATE  VIEW
+qpi.perf_counters
+AS
+SELECT * FROM qpi.fn_perf_counters(NULL);
 GO
 
 CREATE  VIEW

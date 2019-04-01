@@ -1391,87 +1391,119 @@ GO
 ---------------------------------------------------------------------------------------------------
 
 CREATE TABLE qpi.os_performance_counters_snapshot (
-	[name] nvarchar(128) COLLATE Latin1_General_100_CI_AS NOT NULL,
+	[name] nvarchar(128) NOT NULL,
 	[value] decimal NOT NULL,
-	[object] nvarchar(128) COLLATE Latin1_General_100_CI_AS NOT NULL,
-	[instance_name] nvarchar(128) COLLATE Latin1_General_100_CI_AS NOT NULL,
+	[object] nvarchar(128) NOT NULL,
+	[instance_name] nvarchar(128) NOT NULL,
 	[type] int NOT NULL,
 	start_time datetime2 GENERATED ALWAYS AS ROW START,
 	end_time datetime2 GENERATED ALWAYS AS ROW END,
 	PERIOD FOR SYSTEM_TIME (start_time, end_time),
 	PRIMARY KEY (type,name,object,instance_name)
- ) --WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.os_performance_counters_snapshot_history));
+ ) WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.os_performance_counters_snapshot_history));
 GO
 
 -- See for math: blogs.msdn.microsoft.com/psssql/2013/09/23/interpreting-the-counter-values-from-sys-dm_os_performance_counters/
-CREATE_OR_ALTER VIEW
-qpi.perf_counters
-AS
-WITH perf_counter_types AS (
+CREATE_OR_ALTER FUNCTION
+qpi.fn_perf_counters(@as_of DATETIME2)
+RETURNS TABLE
+RETURN (
+WITH
+perf_counters AS
+(
+	select counter_name, cntr_value, object_name, instance_name, cntr_type, start_time = GETUTCDATE()
+	from sys.dm_os_performance_counters
+	WHERE @as_of is null
+	union all
+	select	counter_name = name, cntr_value = value, object_name = name, instance_name, cntr_type = type, start_time
+	from qpi.os_performance_counters_snapshot for system_time as of @as_of
+	WHERE @as_of is not null
+),
+perf_counters_prev AS
+(
+	select	counter_name = name, cntr_value = value, object_name = name, instance_name, cntr_type = type, start_time, end_time
+	from qpi.os_performance_counters_snapshot
+	WHERE @as_of is null
+	union all
+	select	counter_name = name, cntr_value = value, object_name = name, instance_name, cntr_type = type, start_time, end_time
+	from qpi.os_performance_counters_snapshot for system_time as of @as_of
+	WHERE @as_of is not null
+),
+perf_counter_calculation AS (
+--  PERF_COUNTER_RAWCOUNT, PERF_COUNTER_LARGE_RAWCOUNT -> NO PERF_LARGE_RAW_BASE (1073939712) because it is used just to calculate others.
 select	name = counter_name, value = cntr_value, object = object_name, instance_name = pc.instance_name,
-		type = cntr_type from sys.dm_os_performance_counters pc
-where cntr_type in (65792, 1073939712) --  PERF_COUNTER_LARGE_RAWCOUNT, PERF_LARGE_RAW_BASE
+		type = cntr_type
+from perf_counters pc
+where cntr_type in (65536, 65792)
 and pc.cntr_value > 0
+--  /End:	PERF_COUNTER_RAWCOUNT, PERF_COUNTER_LARGE_RAWCOUNT
 union all
 -- PERF_LARGE_RAW_FRACTION
-select	name = pc.counter_name, 
-		value = 
-			CASE 
+select	name = pc.counter_name,
+		value =
+			CASE
 				WHEN base.cntr_value = 0 THEN NULL
 				ELSE 100*pc.cntr_value/base.cntr_value
-			END, object = pc.object_name, 
+			END, object = pc.object_name,
 		instance_name = pc.instance_name,
 		type = pc.cntr_type
-from sys.dm_os_performance_counters pc
-	join sys.dm_os_performance_counters base
-		on rtrim(pc.counter_name) + ' base'  = base.counter_name
+from (
+	select counter_name, cntr_value, object_name, instance_name, cntr_type
+	from perf_counters
+	where cntr_type = 537003264 -- PERF_LARGE_RAW_FRACTION
+	) as pc
+	join (
+	select counter_name, cntr_value, object_name, instance_name, cntr_type
+	from perf_counters
+	where cntr_type = 1073939712 -- PERF_LARGE_RAW_BASE
+	) as base
+		on rtrim(pc.counter_name) + ' base' = base.counter_name
 		and pc.instance_name = base.instance_name
 		and pc.object_name = base.object_name
-where pc.cntr_type = 537003264 -- PERF_LARGE_RAW_FRACTION
-and base.cntr_type = 1073939712 -- PERF_LARGE_RAW_BASE
+-- /End: PERF_LARGE_RAW_FRACTION
 union all
 -- PERF_COUNTER_BULK_COUNT
-select	name = pc.counter_name, 
-		value = (pc.cntr_value-prev.value)/(DATEDIFF(millisecond, prev.start_time, GETUTCDATE()) / 1000.),
+select	name = pc.counter_name,
+		value = (pc.cntr_value-prev.cntr_value)/(DATEDIFF(millisecond, prev.start_time, prev.end_time) / 1000.),
 		object = pc.object_name,
 		instance_name = pc.instance_name,
 		type = pc.cntr_type
-from sys.dm_os_performance_counters pc
-	join qpi.os_performance_counters_snapshot prev
-		on pc.counter_name COLLATE Latin1_General_100_CI_AS = prev.name
-		and pc.object_name COLLATE Latin1_General_100_CI_AS = prev.object
-		and pc.instance_name COLLATE Latin1_General_100_CI_AS = prev.instance_name
-		and pc.cntr_type = prev.type
+from perf_counters pc
+	join perf_counters_prev prev
+		on pc.counter_name  = prev.counter_name
+		and pc.object_name  = prev.object_name
+		and pc.instance_name  = prev.instance_name
+		and pc.cntr_type = prev.cntr_type
+		and pc.start_time = prev.end_time
 where pc.cntr_type = 272696576 -- PERF_COUNTER_BULK_COUNT
-and (pc.cntr_value-prev.value) > 0
 union ALL
 -- PERF_AVERAGE_BULK
-select	name = A1.counter_name, 
+select	name = A1.counter_name,
 		value =  CASE
-		WHEN (B2.value = B1.cntr_value) THEN NULL
-		ELSE (A2.value - A1.cntr_value) / (B2.value - B1.cntr_value)
-		END, 
-		object = A1.object_name, 
+		WHEN (B2.cntr_value = B1.cntr_value) THEN NULL
+		ELSE (A2.cntr_value - A1.cntr_value) / (B2.cntr_value - B1.cntr_value)
+		END,
+		object = A1.object_name,
 		A1.instance_name,
 		type = A1.cntr_type
-from sys.dm_os_performance_counters A1
-	join sys.dm_os_performance_counters B1
+from perf_counters A1
+	join perf_counters B1
 		on rtrim(A1.counter_name) + ' base'  = B1.counter_name
 		and A1.instance_name = B1.instance_name
 		and A1.object_name = B1.object_name
-	join qpi.os_performance_counters_snapshot A2
-		on A1.counter_name COLLATE Latin1_General_100_CI_AS = A2.name
-		and A1.object_name COLLATE Latin1_General_100_CI_AS = A2.object
-		and A1.instance_name COLLATE Latin1_General_100_CI_AS = A2.instance_name
-		and A1.cntr_type = A2.type
-	join qpi.os_performance_counters_snapshot B2
-		on rtrim(A2.name) + ' base'  = B2.name	 
+	join perf_counters A2
+		on A1.counter_name  = A2.counter_name
+		and A1.object_name  = A2.object_name
+		and A1.instance_name  = A2.instance_name
+		and A1.cntr_type = A2.cntr_type
+	join perf_counters B2
+		on rtrim(A2.counter_name) + ' base'  = B2.counter_name
 		and A2.instance_name = B2.instance_name
-		and A2.name = B2.name
+		and A2.counter_name = B2.counter_name
 where A1.cntr_type = 1073874176 -- PERF_AVERAGE_BULK
 and B1.cntr_type = 1073939712 -- PERF_LARGE_RAW_BASE
-and A2.type = 1073874176 -- PERF_AVERAGE_BULK
-and B2.type = 1073939712 -- PERF_LARGE_RAW_BASE
+and A2.cntr_type = 1073874176 -- PERF_AVERAGE_BULK
+and B2.cntr_type = 1073939712 -- PERF_LARGE_RAW_BASE
 )
 SELECT	pc.name, pc.value, pc.type,
 		instance_name =
@@ -1480,11 +1512,19 @@ SELECT	pc.name, pc.value, pc.type,
 #else
 			pc.instance_name
 #endif
-FROM perf_counter_types pc
+FROM perf_counter_calculation pc
 #ifdef AZURE
 left join sys.databases d
 			on pc.instance_name = d.physical_database_name
 #endif
+WHERE value > 0
+)
+GO
+
+CREATE_OR_ALTER VIEW
+qpi.perf_counters
+AS
+SELECT * FROM qpi.fn_perf_counters(NULL);
 GO
 
 CREATE_OR_ALTER VIEW

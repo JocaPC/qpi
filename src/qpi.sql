@@ -1458,7 +1458,7 @@ select	name = A1.counter_name,
 		type = A1.cntr_type
 from perf_counters A1
 	join perf_counters B1
-		on rtrim(A1.counter_name) + ' base'  = B1.counter_name
+		on CHARINDEX( REPLACE(REPLACE(RTRIM(B1.counter_name), ' base',""), ' bs', ""), A1.counter_name) > 0
 		and A1.instance_name = B1.instance_name
 		and A1.object_name = B1.object_name
 	join perf_counters A2
@@ -1467,9 +1467,9 @@ from perf_counters A1
 		and A1.instance_name  = A2.instance_name
 		and A1.cntr_type = A2.cntr_type
 	join perf_counters B2
-		on rtrim(A2.counter_name) + ' base'  = B2.counter_name
+		on CHARINDEX( REPLACE(REPLACE(RTRIM(B2.counter_name), ' base',""), ' bs', ""), A2.counter_name) > 0
 		and A2.instance_name = B2.instance_name
-		and A2.counter_name = B2.counter_name
+		and A2.object_name = B2.object_name
 where A1.cntr_type = 1073874176 -- PERF_AVERAGE_BULK
 and B1.cntr_type = 1073939712 -- PERF_LARGE_RAW_BASE
 and A2.cntr_type = 1073874176 -- PERF_AVERAGE_BULK

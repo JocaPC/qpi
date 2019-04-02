@@ -188,6 +188,7 @@ AS BEGIN
 		EXEC sp_query_store_force_plan @query_id, @plan_id;
 	else if (@hints is not null)
 	begin
+		SET @param = IIF(@param = "", null, @param);
 		EXEC sp_create_plan_guide @name = @guide,
 			@stmt = @sql,
 			@type = N'SQL',

@@ -709,6 +709,14 @@ SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, du
 FROM qpi.db_query_exec_stats qes
 GO
 
+CREATE  VIEW
+qpi.db_query_stats_history
+AS
+SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
+ logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time
+FROM qpi.db_query_exec_stats_history qes
+GO
+
 --- Query comparison
 
 CREATE    function qpi.cmp_query_exec_stats (@query_id int, @date1 datetime2, @date2 datetime2)

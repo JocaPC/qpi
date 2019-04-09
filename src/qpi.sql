@@ -1267,7 +1267,7 @@ UNION ALL
 SELECT name =
 	 CASE CAST(volume_mount_point as CHAR(1))
 		WHEN 'C' THEN 'Reaching TempDB size limit on local storage.'
-		ELSE 'Reaching storage size limit on instance'
+		ELSE 'Reaching storage size limit on instance.'
 	END,
 		reason = 'STORAGE_LIMIT',
 		score = used_gb/total_gb,

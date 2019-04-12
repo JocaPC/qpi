@@ -1091,12 +1091,14 @@ UNION ALL
 		mem_perc = 1;
 GO
 -- www.mssqltips.com/sqlservertip/2393/determine-sql-server-memory-use-by-database-and-object/
-CREATE  VIEW qpi.db_memory_usage
+CREATE  VIEW qpi.memory_per_db
 AS
 WITH src AS
 (
 SELECT
-database_id, db_buffer_pages = COUNT_BIG(*)
+database_id, db_buffer_pages = COUNT_BIG(*),
+			read_time_ms = AVG(read_microsec)/1000.,
+			modified_perc = (100*SUM(CASE WHEN is_modified = 1 THEN 1 ELSE 0 END))/COUNT_BIG(*)
 FROM sys.dm_os_buffer_descriptors
 --WHERE database_id BETWEEN 5 AND 32766 --> to exclude system databases
 GROUP BY database_id
@@ -1111,9 +1113,12 @@ db_buffer_pages * 100.0 / (SELECT top 1 cntr_value
 							FROM sys.dm_os_performance_counters
 							WHERE RTRIM([object_name]) LIKE '%Buffer Manager'
 							AND counter_name = 'Database Pages')
-)
+),
+read_time_ms,
+modified_perc
 FROM src
 GO
+
 CREATE  VIEW
 qpi.recommendations
 AS

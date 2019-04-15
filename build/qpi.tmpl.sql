@@ -9,7 +9,7 @@
 #define QUERYTEXT(query_sql_text) SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))
 #define QUERYLIST(query_id,context_settings_id) count(query_id)
 #endif
-#define QUERYPARAM(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 0, (PATINDEX( '%)[^,]%', query_sql_text))+1), "")
+#define QUERYPARAM(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 2, (PATINDEX( '%)[^,]%', query_sql_text+')'))-1), "")
 --------------------------------------------------------------------------------
 --	SQL Server & Azure SQL (Database & Instance) - Query Performance Insights
 --	Author: Jovan Popovic

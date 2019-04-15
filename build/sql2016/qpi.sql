@@ -98,7 +98,7 @@ return (
 GO
 CREATE  VIEW qpi.db_queries
 as
-select	text =  IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text) ,
+select	text =  IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text)), query_sql_text) ,
 		params =  IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 2, (PATINDEX( '%)[^,]%', query_sql_text+')'))-1), "") ,
 		q.query_text_id, query_id, context_settings_id, q.query_hash
 from sys.query_store_query_text t
@@ -144,7 +144,7 @@ GO
 CREATE  VIEW qpi.queries
 AS
 SELECT
-		text =   IIF(LEFT(text,1) = '(', SUBSTRING( text, (PATINDEX( '%)[^,]%', text))+1, LEN(text))), text) ,
+		text =   IIF(LEFT(text,1) = '(', SUBSTRING( text, (PATINDEX( '%)[^,]%', text))+1, LEN(text)), text) ,
 		params =  IIF(LEFT(text,1) = '(', SUBSTRING( text, 2, (PATINDEX( '%)[^,]%', text+')'))-1), "") ,
 		execution_type_desc = status COLLATE Latin1_General_CS_AS,
 		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
@@ -600,7 +600,7 @@ FUNCTION qpi.db_query_plan_exec_stats_as_of(@date datetime2)
 returns table
 as return (
 select	t.query_text_id, q.query_id,
-		text =   IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
+		text =   IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text)), t.query_sql_text) ,
 		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^,]%', t.query_sql_text+')'))-1), "") ,
 		rs.plan_id,
 		rs.execution_type_desc,
@@ -642,7 +642,7 @@ FUNCTION qpi.db_query_plan_exec_stats_ex_as_of(@date datetime2)
 returns table
 as return (
 select	q.query_id,
-		text =   IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
+		text =   IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text)), t.query_sql_text) ,
 		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^,]%', t.query_sql_text+')'))-1), "") ,
 		t.query_text_id, rsi.start_time, rsi.end_time,
 		rs.*, q.query_hash,
@@ -682,7 +682,7 @@ SELECT	qps.query_id, execution_type_desc,
 FROM qpi.db_query_plan_exec_stats_as_of(@date) qps
 GROUP BY query_id, execution_type_desc
 )
-SELECT  text =   IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
+SELECT  text =   IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^,]%', t.query_sql_text))+1, LEN(t.query_sql_text)), t.query_sql_text) ,
 		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^,]%', t.query_sql_text+')'))-1), "") ,
 		qs.*,
 		t.query_text_id

@@ -189,7 +189,7 @@ AS BEGIN
 			@sql nvarchar(max), 
 			@param nvarchar(max),
 			@exists bit;
-	select @sql = text, @param = TRIM('(' FROM params)
+	select @sql = text, @param = QUERYPARAM(params)
 	from qpi.db_queries
 	where query_id = @query_id;
 	select @guide = name, @exists = 1 from sys.plan_guides where query_text = @sql;
@@ -212,7 +212,7 @@ END
 GO
 
 CREATE_OR_ALTER
-VIEW qpi.forced_db_queries
+VIEW qpi.db_forced_queries
 AS
 	SELECT text = text COLLATE Latin1_General_100_CI_AS, forced_plan_id = plan_id, hints = null from qpi.db_query_plans where is_forced_plan = 1
 	UNION ALL
@@ -1324,7 +1324,7 @@ select top 1 storage_usage_perc =
 DATEDIFF(mi, lead (start_time, 100) over (order by start_time desc), start_time))  * 120)
 / reserved_storage_mb
 from master.sys.server_resource_stats
-where storage_space_used_mb > (.8 * reserved_storage_mb) -- ignore if curent storage is less than 80%
+where storage_space_used_mb > (.8 * reserved_storage_mb) -- ignore if the current storage is less than 80%
 order by start_time desc
 ) a(storage_usage_perc)
 WHERE a.storage_usage_perc > .8

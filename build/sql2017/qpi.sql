@@ -177,7 +177,7 @@ AS BEGIN
 			@sql nvarchar(max),
 			@param nvarchar(max),
 			@exists bit;
-	select @sql = text, @param = TRIM('(' FROM params)
+	select @sql = text, @param =  IIF(LEFT(params,1) = '(', SUBSTRING( params, 0, (PATINDEX( '%)[^,]%', params))+1), "")
 	from qpi.db_queries
 	where query_id = @query_id;
 	select @guide = name, @exists = 1 from sys.plan_guides where query_text = @sql;
@@ -200,7 +200,7 @@ END
 GO
 
 CREATE OR ALTER
-VIEW qpi.forced_db_queries
+VIEW qpi.db_forced_queries
 AS
 	SELECT text = text COLLATE Latin1_General_100_CI_AS, forced_plan_id = plan_id, hints = null from qpi.db_query_plans where is_forced_plan = 1
 	UNION ALL

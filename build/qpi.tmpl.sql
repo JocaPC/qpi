@@ -6,7 +6,7 @@
 #define QUERYLIST(query_id,context_settings_id) string_agg(concat(query_id,'(', context_settings_id,')'),',')
 #else
 #define CREATE_OR_ALTER CREATE
-#define QUERYTEXT(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+1, LEN(query_sql_text)), query_sql_text)
+#define QUERYTEXT(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, (PATINDEX( '%)[^,]%', query_sql_text))+2, LEN(query_sql_text)), query_sql_text)
 #define QUERYLIST(query_id,context_settings_id) count(query_id)
 #endif
 #define QUERYPARAM(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 2, (PATINDEX( '%)[^,]%', query_sql_text+')'))-1), "")

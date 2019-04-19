@@ -1113,6 +1113,20 @@ AS
 SELECT DISTINCT snapshot_name = title, start_time, end_time
 FROM qpi.io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
 GO
+
+CREATE OR ALTER  VIEW qpi.file_stats_history
+AS
+select s.snapshot_name, s.start_time, fs.*
+from qpi.file_stats_snapshots s
+cross apply qpi.file_stats_at(s.snapshot_name) fs;
+GO
+
+CREATE OR ALTER  VIEW qpi.db_file_stats_history
+AS
+select s.snapshot_name, s.start_time, fs.*
+from qpi.file_stats_snapshots s
+cross apply qpi.db_file_stats_at(s.snapshot_name) fs;
+GO
 CREATE OR ALTER  FUNCTION qpi.memory_mb()
 RETURNS int AS
 BEGIN

@@ -756,7 +756,8 @@ GROUP BY query_id, execution_type_desc
 SELECT  text =   IIF(LEFT(t.query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^),]%', t.query_sql_text))+1, LEN(t.query_sql_text))), t.query_sql_text) ,
 		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))-2), "") ,
 		qs.*,
-		t.query_text_id
+		t.query_text_id,
+		q.query_hash
 FROM query_stats qs
 	join sys.query_store_query q
 	on q.query_id = qs.query_id
@@ -788,7 +789,7 @@ SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, du
  wait_time_ms,
  log_bytes_used_kb,
 
- logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time
+ logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash
 FROM qpi.db_query_exec_stats qes
 
 	LEFT JOIN ws ON qes.query_id = ws.query_id
@@ -813,7 +814,7 @@ SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, du
  wait_time_ms,
  log_bytes_used_kb,
 
- logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time
+ logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash
 FROM qpi.db_query_exec_stats_history qes
 
 	LEFT JOIN ws ON qes.query_id = ws.query_id

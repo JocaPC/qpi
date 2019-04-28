@@ -1208,7 +1208,7 @@ SELECT memory = REPLACE([type], 'MEMORYCLERK_', "")
 UNION ALL
 	SELECT memory = '_Total',
 		mem_gb = CAST(ROUND(qpi.memory_mb() /1024., 1) AS NUMERIC(6,1)),
-		mem_perc = 1;
+		mem_perc = 100;
 GO
 -- www.mssqltips.com/sqlservertip/2393/determine-sql-server-memory-use-by-database-and-object/
 CREATE OR ALTER  VIEW qpi.memory_per_db

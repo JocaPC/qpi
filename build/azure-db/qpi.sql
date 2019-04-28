@@ -305,6 +305,8 @@ GO
 ---------------------------------------------------------------------------------------------------
 --	Wait statistics
 ---------------------------------------------------------------------------------------------------
+IF (OBJECT_ID(N'qpi.os_wait_stats_snapshot') IS NULL)
+BEGIN
 CREATE TABLE qpi.os_wait_stats_snapshot
 	(
 	[category_id] tinyint NULL,
@@ -319,9 +321,10 @@ CREATE TABLE qpi.os_wait_stats_snapshot
 	PERIOD FOR SYSTEM_TIME (start_time, end_time),
 	PRIMARY KEY (wait_type)
  ) WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.os_wait_stats_snapshot_history));
-GO
+
 CREATE INDEX ix_dm_os_wait_stats_snapshot
 	ON qpi.os_wait_stats_snapshot_history(end_time);
+END;
 GO
 
 CREATE OR ALTER  FUNCTION qpi.__wait_stats_category_id(@wait_type varchar(128))
@@ -992,7 +995,8 @@ GO
 ---------------------------------------------------------------------------------------------------
 --				Performance counters
 ---------------------------------------------------------------------------------------------------
-
+IF (OBJECT_ID(N'qpi.os_performance_counters_snapshot') IS NULL)
+BEGIN
 CREATE TABLE qpi.os_performance_counters_snapshot (
 	[name] nvarchar(128) NOT NULL,
 	[value] decimal NOT NULL,
@@ -1004,6 +1008,7 @@ CREATE TABLE qpi.os_performance_counters_snapshot (
 	PERIOD FOR SYSTEM_TIME (start_time, end_time),
 	PRIMARY KEY (type,name,object,instance_name)
  ) WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.os_performance_counters_snapshot_history));
+END;
 GO
 
 -- See for math: blogs.msdn.microsoft.com/psssql/2013/09/23/interpreting-the-counter-values-from-sys-dm_os_performance_counters/

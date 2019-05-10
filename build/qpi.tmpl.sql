@@ -1560,12 +1560,12 @@ and B1.cntr_type = 1073939712 -- PERF_LARGE_RAW_BASE
 and A2.cntr_type = 1073874176 -- PERF_AVERAGE_BULK
 and B2.cntr_type = 1073939712 -- PERF_LARGE_RAW_BASE
 )
-SELECT	pc.name, pc.value, pc.type, category = pc.object,
+SELECT	name= RTRIM(pc.name), pc.value, type = RTRIM(pc.type), category = RTRIM(pc.object),
 		instance_name =
 #ifdef AZURE
-			ISNULL(d.name, pc.instance_name)
+			RTRIM(ISNULL(d.name, pc.instance_name))
 #else
-			pc.instance_name
+			RTRIM(pc.instance_name)
 #endif
 FROM perf_counter_calculation pc
 #ifdef AZURE

@@ -1345,6 +1345,27 @@ FROM (select cpu = AVG(avg_cpu_percent)
 	from master.sys.server_resource_stats
 	where start_time > DATEADD(hour , -1, GETUTCDATE())) as usage(cpu)
 where cpu > .85
+UNION ALL
+select
+        name = wait_type COLLATE Latin1_General_100_CI_AS,
+		reason = CASE wait_type
+                    WHEN 'INSTANCE_LOG_RATE_GOVERNOR' THEN CONCAT('Reaching ',
+                     (SELECT TOP 1 CASE WHEN sku = 'General Purpose' THEN '22'
+                                ELSE '48' END
+                        from master.sys.server_resource_stats
+                        where start_time > DATEADD(minute , -10, GETUTCDATE())), ' MB/s instance log rate limit.' )
+                    WHEN 'WRITELOG' THEN 'Potentially reaching the IO limits of log file.'
+                    ELSE 'Potentially reaching the IO limit of data file.'
+                END COLLATE Latin1_General_100_CI_AS,
+        score = 80.,
+		[state] = NULL,
+        script = 'N/A - this is Managed Instance limit' COLLATE Latin1_General_100_CI_AS,
+		details = null
+ from (select top 10 *
+from sys.dm_os_wait_stats
+order by wait_time_ms desc) as ws
+where wait_type in ('INSTANCE_LOG_RATE_GOVERNOR', 'WRITELOG')
+or wait_type like 'PAGEIOLATCH%'
 
 GO
 ---------------------------------------------------------------------------------------------------------

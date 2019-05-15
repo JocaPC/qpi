@@ -983,6 +983,20 @@ cross apply sys.dm_db_log_info(mf.database_id) li
 where li.file_id = mf.file_id
 group by mf.database_id, mf.file_id, name
 having count(*) > 50
+UNION ALL
+select	name = 'MEMORY_PRESSURE',
+		reason = CONCAT('Low page life expectancy ', v.cntr_value,' on ', RTRIM(v.object_name), '. Should be greater than: ',
+		(((l.cntr_value*8/1024)/1024)/4)*300)
+		, score = 100 -- something like 1 - EXP (CASE WHEN l.cntr_value > 0 THEN (((l.cntr_value*8./1024)/1024)/4)*300 ELSE NULL END) / v.cntr_value
+		, state = null
+		, script = 'N/A: Add more memory or find the queries that use most of memory.'
+		, details = null
+from sys.dm_os_performance_counters v
+join sys.dm_os_performance_counters l on v.object_name = l.object_name
+where v.counter_name = 'Page Life Expectancy'
+and l.counter_name = 'Database pages'
+and l.object_name like '%Buffer Node%'
+and (CASE WHEN l.cntr_value > 0 THEN (((l.cntr_value*8./1024)/1024)/4)*300 ELSE NULL END) / v.cntr_value > 1
 
 UNION ALL
 SELECT	name, reason, score,

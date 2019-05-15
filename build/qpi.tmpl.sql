@@ -1366,6 +1366,16 @@ where storage_space_used_mb > (.8 * reserved_storage_mb) -- ignore if the curren
 order by start_time desc
 ) a(storage_usage_perc)
 WHERE a.storage_usage_perc > .8
+UNION ALL
+SELECT	name = 'CPU_PRESSURE', 
+		reason = CONCAT('High CPU usage ', cpu ,' on the instance in past hour.'),
+		score = cpu/100.,
+		[state] = NULL, script = 'N/A: Find top queries that are using a lot of CPU and optimize them or add more cores by upgrading the instance.',
+		details = CONCAT( 'Instance is using ', cpu, '% of CPU.') 
+FROM (select cpu = AVG(avg_cpu_percent)
+	from master.sys.server_resource_stats
+	where start_time > DATEADD(hour , -1, GETUTCDATE())) as usage(cpu)
+where cpu > .85
 #endif
 GO
 ---------------------------------------------------------------------------------------------------------

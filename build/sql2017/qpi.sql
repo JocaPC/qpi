@@ -934,7 +934,7 @@ CREATE TABLE qpi.io_virtual_file_stats_snapshot (
 	[num_of_reads] [bigint] NOT NULL check (num_of_reads >= 0),
 	[num_of_writes] [bigint] NOT NULL check (num_of_writes >= 0),
 	title nvarchar(500),
-	interval_mi int,
+	interval_mi bigint,
 	start_time datetime2 GENERATED ALWAYS AS ROW START,
 	end_time datetime2 GENERATED ALWAYS AS ROW END,
 	PERIOD FOR SYSTEM_TIME (start_time, end_time),
@@ -976,7 +976,7 @@ UPDATE SET
 	Target.[num_of_reads] = Source.[num_of_reads] ,-- Target.[num_of_reads],
 	Target.[num_of_writes] = Source.[num_of_writes] ,-- Target.[num_of_writes],
 	Target.title = ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)) ,
-	Target.interval_mi = DATEDIFF(mi, Target.start_time, GETUTCDATE())
+	Target.interval_mi = DATEDIFF_BIG(mi, Target.start_time, GETUTCDATE())
 WHEN NOT MATCHED BY TARGET THEN
 INSERT (db_name,database_id,file_name,size_gb,[file_id],
     [io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],

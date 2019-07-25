@@ -1203,11 +1203,16 @@ RETURN (
 WITH
 perf_counters AS
 (
-	select counter_name, cntr_value, object_name, instance_name, cntr_type, start_time = '9999-12-31 23:59:59.9999999' -- #hack used to join with prev.end_time
+	select counter_name = counter_name COLLATE Latin1_General_100_CI_AS, cntr_value,
+	 object_name = object_name COLLATE Latin1_General_100_CI_AS,
+	 instance_name = instance_name COLLATE Latin1_General_100_CI_AS,
+	  cntr_type, start_time = '9999-12-31 23:59:59.9999999' -- #hack used to join with prev.end_time
 	from sys.dm_os_performance_counters
 	WHERE @as_of is null
 	union all
-	select	counter_name = name, cntr_value = value, object_name = object, instance_name, cntr_type = type, start_time
+	select	counter_name = name COLLATE Latin1_General_100_CI_AS, cntr_value = value,
+	object_name = object COLLATE Latin1_General_100_CI_AS,
+	instance_name = instance_name COLLATE Latin1_General_100_CI_AS, cntr_type = type, start_time
 	from qpi.os_performance_counters_snapshot for system_time as of @as_of
 	WHERE @as_of is not null
 ),
@@ -1249,9 +1254,9 @@ from (
 	from perf_counters
 	where cntr_type = 1073939712 -- PERF_LARGE_RAW_BASE
 	) as base
-		on rtrim(pc.counter_name) + ' base' = base.counter_name
-		and pc.instance_name = base.instance_name
-		and pc.object_name = base.object_name
+		on  (rtrim(pc.counter_name) + ' base') COLLATE Latin1_General_100_CI_AS = (base.counter_name) COLLATE Latin1_General_100_CI_AS
+		and  (pc.instance_name) COLLATE Latin1_General_100_CI_AS = (base.instance_name) COLLATE Latin1_General_100_CI_AS
+		and  (pc.object_name) COLLATE Latin1_General_100_CI_AS = (base.object_name) COLLATE Latin1_General_100_CI_AS
 -- /End: PERF_LARGE_RAW_FRACTION
 union all
 -- PERF_COUNTER_BULK_COUNT
@@ -1262,9 +1267,9 @@ select	name = pc.counter_name,
 		type = pc.cntr_type
 from perf_counters pc
 	join perf_counters_prev prev
-		on pc.counter_name  = prev.counter_name
-		and pc.object_name  = prev.object_name
-		and pc.instance_name  = prev.instance_name
+		on  (pc.counter_name) COLLATE Latin1_General_100_CI_AS = (prev.counter_name) COLLATE Latin1_General_100_CI_AS
+		and  (pc.object_name) COLLATE Latin1_General_100_CI_AS = (prev.object_name) COLLATE Latin1_General_100_CI_AS
+		and  (pc.instance_name) COLLATE Latin1_General_100_CI_AS = (prev.instance_name) COLLATE Latin1_General_100_CI_AS
 		and pc.cntr_type = prev.cntr_type
 		and pc.start_time = prev.end_time
 where pc.cntr_type = 272696576 -- PERF_COUNTER_BULK_COUNT
@@ -1280,18 +1285,18 @@ select	name = A1.counter_name,
 		type = A1.cntr_type
 from perf_counters A1
 	join perf_counters B1
-		on CHARINDEX( REPLACE(REPLACE(RTRIM(B1.counter_name), ' base',""), ' bs', ""), A1.counter_name) > 0
-		and A1.instance_name = B1.instance_name
-		and A1.object_name = B1.object_name
+		on CHARINDEX( REPLACE(REPLACE(RTRIM(B1.counter_name COLLATE Latin1_General_100_CI_AS), ' base',""), ' bs', ""), A1.counter_name) > 0
+		and  (A1.instance_name) COLLATE Latin1_General_100_CI_AS = (B1.instance_name) COLLATE Latin1_General_100_CI_AS
+		and  (A1.object_name) COLLATE Latin1_General_100_CI_AS = (B1.object_name) COLLATE Latin1_General_100_CI_AS
 	join perf_counters A2
-		on A1.counter_name  = A2.counter_name
-		and A1.object_name  = A2.object_name
-		and A1.instance_name  = A2.instance_name
+		on  (A1.counter_name) COLLATE Latin1_General_100_CI_AS = (A2.counter_name) COLLATE Latin1_General_100_CI_AS
+		and  (A1.object_name) COLLATE Latin1_General_100_CI_AS = (A2.object_name) COLLATE Latin1_General_100_CI_AS
+		and  (A1.instance_name) COLLATE Latin1_General_100_CI_AS = (A2.instance_name) COLLATE Latin1_General_100_CI_AS
 		and A1.cntr_type = A2.cntr_type
 	join perf_counters B2
-		on CHARINDEX( REPLACE(REPLACE(RTRIM(B2.counter_name), ' base',""), ' bs', ""), A2.counter_name) > 0
-		and A2.instance_name = B2.instance_name
-		and A2.object_name = B2.object_name
+		on CHARINDEX( REPLACE(REPLACE(RTRIM(B2.counter_name COLLATE Latin1_General_100_CI_AS), ' base',""), ' bs', ""), A2.counter_name) > 0
+		and  (A2.instance_name) COLLATE Latin1_General_100_CI_AS = (B2.instance_name) COLLATE Latin1_General_100_CI_AS
+		and  (A2.object_name) COLLATE Latin1_General_100_CI_AS = (B2.object_name) COLLATE Latin1_General_100_CI_AS
 where A1.cntr_type = 1073874176 -- PERF_AVERAGE_BULK
 and B1.cntr_type = 1073939712 -- PERF_LARGE_RAW_BASE
 and A2.cntr_type = 1073874176 -- PERF_AVERAGE_BULK
@@ -1332,9 +1337,9 @@ USING (
 	-- Do not use the trick with joining instance name with sys.databases.physical_name
 	-- because there are duplicate key insert error on system database
 	) AS Source
-ON (Target.object = Source.object COLLATE Latin1_General_100_CI_AS
-	AND Target.name = Source.name COLLATE Latin1_General_100_CI_AS
-	AND Target.instance_name = Source.instance_name COLLATE Latin1_General_100_CI_AS
+ON (	 (Target.object) COLLATE Latin1_General_100_CI_AS = (Source.object) COLLATE Latin1_General_100_CI_AS
+	AND  (Target.name) COLLATE Latin1_General_100_CI_AS = (Source.name) COLLATE Latin1_General_100_CI_AS
+	AND  (Target.instance_name) COLLATE Latin1_General_100_CI_AS = (Source.instance_name) COLLATE Latin1_General_100_CI_AS
 	AND Target.type = Source.type)
 WHEN MATCHED THEN
 UPDATE SET

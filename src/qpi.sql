@@ -1034,13 +1034,13 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 			= CAST((cur.num_of_writes - prev.num_of_writes)/ (DATEDIFF(millisecond, prev.start_time, cur.start_time) / 1000.) AS numeric(10,0)),
 		latency_ms
 			= CASE WHEN ( (cur.num_of_reads - prev.num_of_reads) = 0 AND (cur.num_of_writes - prev.num_of_writes) = 0)
-				THEN NULL ELSE (CAST(ROUND(1.0 * (cur.io_stall - prev.io_stall) / ((cur.num_of_reads - prev.num_of_reads) + (cur.num_of_writes - prev.num_of_writes)), 1) AS numeric(5,1))) END,
+				THEN NULL ELSE (CAST(ROUND(1.0 * (cur.io_stall - prev.io_stall) / ((cur.num_of_reads - prev.num_of_reads) + (cur.num_of_writes - prev.num_of_writes)), 1) AS numeric(10,1))) END,
 		read_latency_ms
 			= CASE WHEN (cur.num_of_reads - prev.num_of_reads) = 0
-				THEN NULL ELSE (CAST(ROUND(1.0 * (cur.io_stall_read_ms - prev.io_stall_read_ms) / (cur.num_of_reads - prev.num_of_reads), 1) AS numeric(5,1))) END,
+				THEN NULL ELSE (CAST(ROUND(1.0 * (cur.io_stall_read_ms - prev.io_stall_read_ms) / (cur.num_of_reads - prev.num_of_reads), 1) AS numeric(10,1))) END,
 		write_latency_ms
 			= CASE WHEN (cur.num_of_writes - prev.num_of_writes) = 0
-				THEN NULL ELSE (CAST(ROUND(1.0 * (cur.io_stall_write_ms - prev.io_stall_write_ms) / (cur.num_of_writes - prev.num_of_writes), 1) AS numeric(5,1))) END,
+				THEN NULL ELSE (CAST(ROUND(1.0 * (cur.io_stall_write_ms - prev.io_stall_write_ms) / (cur.num_of_writes - prev.num_of_writes), 1) AS numeric(10,1))) END,
 		read_io_latency_ms =
 			CASE WHEN (cur.num_of_reads - prev.num_of_reads) = 0
 				THEN NULL ELSE
@@ -1148,9 +1148,9 @@ GO
 CREATE OR ALTER  VIEW qpi.volumes
 AS
 SELECT	volume_mount_point,
-		used_gb = CAST(MIN(total_bytes / 1024. / 1024 / 1024) AS NUMERIC(8,1)),
-		available_gb = CAST(MIN(available_bytes / 1024. / 1024 / 1024) AS NUMERIC(8,1)),
-		total_gb = CAST(MIN((total_bytes+available_bytes) / 1024. / 1024 / 1024) AS NUMERIC(8,1))
+		used_gb = CAST(MIN(total_bytes / 1024. / 1024 / 1024) AS NUMERIC(10,1)),
+		available_gb = CAST(MIN(available_bytes / 1024. / 1024 / 1024) AS NUMERIC(10,1)),
+		total_gb = CAST(MIN((total_bytes+available_bytes) / 1024. / 1024 / 1024) AS NUMERIC(10,1))
 FROM sys.master_files AS f
 CROSS APPLY sys.dm_os_volume_stats(f.database_id, f.file_id)
 GROUP BY volume_mount_point;

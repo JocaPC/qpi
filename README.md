@@ -33,7 +33,7 @@ select * from qpi.blocked_queries;   -- Information about the currently blocked 
 select * from qpi.query_locks;       -- Information about the locks that the queries are holding
 
 select * from qpi.cpu_usage; --  Information about CPU usage.
-select * from qpi.mem_usage; --  Information about memory usage.
+select * from qpi.memory; --  Information about memory usage.
 ```
 
 Getting the information about the system performance:
@@ -83,4 +83,6 @@ You can download the source and run it in your database. Choose the version base
 
 ```
 DECLARE @database sysname = <'put the name of the database where QPI procedures are placed'>;
+
+-- the rest of the script is here...
 ```

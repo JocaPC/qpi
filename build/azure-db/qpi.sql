@@ -911,6 +911,240 @@ and (@date2 is null or rsi2.start_time <= @date2 and @date2 < rsi2.end_time)
 );
 GO
 GO
+
+---------------------------------------------------------------------------------------------------
+-- www.sqlskills.com/blogs/paul/how-to-examine-io-subsystem-latencies-from-within-sql-server/
+---------------------------------------------------------------------------------------------------
+IF (OBJECT_ID(N'qpi.io_virtual_file_stats_snapshot') IS NULL)
+BEGIN
+CREATE TABLE qpi.io_virtual_file_stats_snapshot (
+	[db_name] sysname NULL,
+	[database_id] [smallint] NOT NULL,
+	[file_name] [sysname] NOT NULL,
+	[size_gb] int NOT NULL,
+	[file_id] [smallint] NOT NULL,
+	[io_stall_read_ms] [bigint] NOT NULL,
+	[io_stall_write_ms] [bigint] NOT NULL,
+	[io_stall_queued_read_ms] [bigint] NOT NULL,
+	[io_stall_queued_write_ms] [bigint] NOT NULL,
+	[io_stall] [bigint] NOT NULL,
+	[num_of_bytes_read] [bigint] NOT NULL,
+	[num_of_bytes_written] [bigint] NOT NULL,
+	[num_of_reads] [bigint] NOT NULL check (num_of_reads >= 0),
+	[num_of_writes] [bigint] NOT NULL check (num_of_writes >= 0),
+	title nvarchar(500),
+	interval_mi bigint,
+	start_time datetime2 GENERATED ALWAYS AS ROW START,
+	end_time datetime2 GENERATED ALWAYS AS ROW END,
+	PERIOD FOR SYSTEM_TIME (start_time, end_time),
+	PRIMARY KEY (database_id, file_id),
+	INDEX UQ_snapshot_title UNIQUE (title, database_id, file_id)
+ ) WITH (SYSTEM_VERSIONING = ON ( HISTORY_TABLE = qpi.io_virtual_file_stats_snapshot_history));
+
+CREATE INDEX ix_file_snapshot_interval_history
+	ON qpi.io_virtual_file_stats_snapshot_history(end_time);
+END;
+GO
+
+CREATE OR ALTER
+PROCEDURE qpi.snapshot_file_stats @title nvarchar(200) = NULL, @db_name sysname = null, @file_name sysname = null
+AS BEGIN
+MERGE qpi.io_virtual_file_stats_snapshot AS Target
+USING (
+	SELECT db_name = DB_NAME(vfs.database_id),vfs.database_id,
+		file_name = [mf].[name],size_gb = 8. * mf.size /1024/ 1024,[vfs].[file_id],
+		[io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
+		[num_of_bytes_read], [num_of_bytes_written],
+		[num_of_reads], [num_of_writes]
+	FROM sys.dm_io_virtual_file_stats (db_id(@db_name),NULL) AS [vfs]
+
+	JOIN (select database_id = DB_ID(), * FROM sys.database_files) AS [mf] ON
+		[vfs].[database_id] = [mf].[database_id] AND [vfs].[file_id] = [mf].[file_id]
+		AND (@file_name IS NULL OR [mf].[name] = @file_name)
+	) AS Source
+ON (Target.file_id = Source.file_id AND Target.database_id = Source.database_id)
+WHEN MATCHED THEN
+UPDATE SET
+	Target.[size_gb] = Source.[size_gb], -- Target.[io_stall_read_ms],
+	Target.[io_stall_read_ms] = Source.[io_stall_read_ms], -- Target.[io_stall_read_ms],
+	Target.[io_stall_write_ms] = Source.[io_stall_write_ms], -- Target.[io_stall_write_ms],
+	Target.[io_stall_queued_read_ms] = Source.[io_stall_queued_read_ms], -- Target.[io_stall_read_ms],
+	Target.[io_stall_queued_write_ms] = Source.[io_stall_queued_write_ms], -- Target.[io_stall_write_ms],
+	Target.[io_stall] = Source.[io_stall] ,-- Target.[io_stall],
+	Target.[num_of_bytes_read] = Source.[num_of_bytes_read] ,-- Target.[num_of_bytes_read],
+	Target.[num_of_bytes_written] = Source.[num_of_bytes_written] ,-- Target.[num_of_bytes_written],
+	Target.[num_of_reads] = Source.[num_of_reads] ,-- Target.[num_of_reads],
+	Target.[num_of_writes] = Source.[num_of_writes] ,-- Target.[num_of_writes],
+	Target.title = ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)) ,
+	Target.interval_mi = DATEDIFF_BIG(mi, Target.start_time, GETUTCDATE())
+WHEN NOT MATCHED BY TARGET THEN
+INSERT (db_name,database_id,file_name,size_gb,[file_id],
+    [io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
+    [num_of_bytes_read], [num_of_bytes_written],
+    [num_of_reads], [num_of_writes], title)
+VALUES (Source.db_name,Source.database_id,Source.file_name,Source.size_gb,Source.[file_id],Source.[io_stall_read_ms],Source.[io_stall_write_ms],Source.[io_stall_queued_read_ms],Source.[io_stall_queued_write_ms],Source.[io_stall],Source.[num_of_bytes_read],Source.[num_of_bytes_written],Source.[num_of_reads],Source.[num_of_writes], ISNULL(@title, CONVERT(VARCHAR(30), GETDATE(), 20)) );
+END
+GO
+
+CREATE OR ALTER  FUNCTION qpi.fn_file_stats(@database_id int, @end_date datetime2 = null, @milestone nvarchar(100) = null)
+RETURNS TABLE
+AS RETURN (
+	-- for testing: DECLARE @database_id int = DB_ID(), @end_date datetime2 = null, @milestone nvarchar(100) = null;
+with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
+				[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes], title, start_time, end_time)
+	as (
+			SELECT	s.database_id, [file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
+					[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
+					title, start_time, end_time
+			FROM qpi.io_virtual_file_stats_snapshot for system_time as of @end_date s
+			WHERE @end_date is not null
+			AND (@database_id is null or s.database_id = @database_id)
+			UNION ALL
+			SELECT	database_id,[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
+					[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
+					title, start_time, end_time
+			FROM qpi.io_virtual_file_stats_snapshot for system_time all as s
+			WHERE @milestone is not null
+			AND title = @milestone
+			AND (@database_id is null or s.database_id = @database_id)
+			UNION ALL
+			SELECT	s.database_id,s.[file_id],[size_gb]=8.*mf.size/1024/1024,[io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
+						[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
+						title = 'Latest', start_time = GETUTCDATE(), end_time = CAST('9999-12-31T00:00:00.0000' AS DATETIME2)
+
+
+
+
+				FROM sys.dm_io_virtual_file_stats (DB_ID(), null) s
+					JOIN (SELECT database_id = DB_ID(), * FROM sys.database_files) mf ON mf.database_id = s.database_id AND mf.file_id = s.file_id
+
+			WHERE @milestone is null AND @end_date is null
+		)
+		SELECT
+		db_name = prev.db_name,
+		file_name = prev.file_name,
+		cur.size_gb,
+		throughput_mbps
+			= CAST((cur.num_of_bytes_read - prev.num_of_bytes_read)/1024.0/1024.0 / (DATEDIFF(millisecond, prev.start_time, cur.start_time) / 1000.) AS numeric(10,2))
+			+ CAST((cur.num_of_bytes_written - prev.num_of_bytes_written)/1024.0/1024.0 / (DATEDIFF(millisecond, prev.start_time, cur.start_time) / 1000.) AS numeric(10,2)),
+		read_mbps
+			= CAST((cur.num_of_bytes_read - prev.num_of_bytes_read)/1024.0/1024.0 / (DATEDIFF(millisecond, prev.start_time, cur.start_time) / 1000.) AS numeric(10,2)),
+		write_mbps
+			= CAST((cur.num_of_bytes_written - prev.num_of_bytes_written)/1024.0/1024.0 / (DATEDIFF(millisecond, prev.start_time, cur.start_time) / 1000.) AS numeric(10,2)),
+		iops
+			= CAST((cur.num_of_reads - prev.num_of_reads + cur.num_of_writes - prev.num_of_writes)/ (DATEDIFF(millisecond, prev.start_time, cur.start_time) / 1000.) AS numeric(10,0)),
+		read_iops
+			= CAST((cur.num_of_reads - prev.num_of_reads)/ (DATEDIFF(millisecond, prev.start_time, cur.start_time) / 1000.) AS numeric(10,0)),
+		write_iops
+			= CAST((cur.num_of_writes - prev.num_of_writes)/ (DATEDIFF(millisecond, prev.start_time, cur.start_time) / 1000.) AS numeric(10,0)),
+		latency_ms
+			= CASE WHEN ( (cur.num_of_reads - prev.num_of_reads) = 0 AND (cur.num_of_writes - prev.num_of_writes) = 0)
+				THEN NULL ELSE (CAST(ROUND(1.0 * (cur.io_stall - prev.io_stall) / ((cur.num_of_reads - prev.num_of_reads) + (cur.num_of_writes - prev.num_of_writes)), 1) AS numeric(10,1))) END,
+		read_latency_ms
+			= CASE WHEN (cur.num_of_reads - prev.num_of_reads) = 0
+				THEN NULL ELSE (CAST(ROUND(1.0 * (cur.io_stall_read_ms - prev.io_stall_read_ms) / (cur.num_of_reads - prev.num_of_reads), 1) AS numeric(10,1))) END,
+		write_latency_ms
+			= CASE WHEN (cur.num_of_writes - prev.num_of_writes) = 0
+				THEN NULL ELSE (CAST(ROUND(1.0 * (cur.io_stall_write_ms - prev.io_stall_write_ms) / (cur.num_of_writes - prev.num_of_writes), 1) AS numeric(10,1))) END,
+		read_io_latency_ms =
+			CASE WHEN (cur.num_of_reads - prev.num_of_reads) = 0
+				THEN NULL ELSE
+			CAST(ROUND(((cur.io_stall_read_ms-cur.io_stall_queued_read_ms) - (prev.io_stall_read_ms - prev.io_stall_queued_read_ms))/(cur.num_of_reads - prev.num_of_reads),2) AS NUMERIC(10,2))
+			END,
+		write_io_latency_ms =
+		CASE WHEN (cur.num_of_writes - prev.num_of_writes) = 0
+				THEN NULL
+				ELSE CAST(ROUND(((cur.io_stall_write_ms-cur.io_stall_queued_write_ms) - (prev.io_stall_write_ms - prev.io_stall_queued_write_ms))/(cur.num_of_writes - prev.num_of_writes),2) AS NUMERIC(10,2))
+			END,
+		kb_per_read
+			= CASE WHEN (cur.num_of_reads - prev.num_of_reads) = 0
+				THEN NULL ELSE CAST(((cur.num_of_bytes_read - prev.num_of_bytes_read) / (cur.num_of_reads - prev.num_of_reads))/1024.0 AS numeric(10,1)) END,
+		kb_per_write
+			= CASE WHEN (cur.num_of_writes - prev.num_of_writes) = 0
+				THEN NULL ELSE CAST(((cur.num_of_bytes_written - prev.num_of_bytes_written) / (cur.num_of_writes - prev.num_of_writes))/1024.0 AS numeric(10,1)) END,
+		kb_per_io
+			= CASE WHEN ((cur.num_of_reads - prev.num_of_reads) = 0 AND (cur.num_of_writes - prev.num_of_writes) = 0)
+				THEN NULL ELSE CAST(
+					(((cur.num_of_bytes_read - prev.num_of_bytes_read) + (cur.num_of_bytes_written - prev.num_of_bytes_written)) /
+					((cur.num_of_reads - prev.num_of_reads) + (cur.num_of_writes - prev.num_of_writes)))/1024.0
+					 AS numeric(10,1)) END,
+		read_mb = CAST((cur.num_of_bytes_read - prev.num_of_bytes_read)/1024.0/1024 AS numeric(10,2)),
+		write_mb = CAST((cur.num_of_bytes_written - prev.num_of_bytes_written)/1024.0/1024 AS numeric(10,2)),
+		num_of_reads = cur.num_of_reads - prev.num_of_reads,
+		num_of_writes = cur.num_of_writes - prev.num_of_writes,
+		interval_mi = DATEDIFF(minute, prev.start_time, cur.start_time),
+		[type] = mf.type_desc
+	FROM cur
+		JOIN qpi.io_virtual_file_stats_snapshot for system_time all as prev
+			ON cur.file_id = prev.file_id
+			AND cur.database_id = prev.database_id
+			AND (
+				((@end_date is not null or @milestone is not null) and cur.start_time = prev.end_time)	-- cur is snapshot history => get the previous snapshot history record
+				OR
+				((@end_date is null and @milestone is null) and prev.end_time > GETUTCDATE())				-- cur is dm_io_virtual_file_stats => get the latest snapshot history record
+			)
+
+
+
+		JOIN (SELECT database_id = DB_ID(), * FROM sys.database_files) mf ON cur.database_id = mf.database_id AND cur.file_id = mf.file_id
+
+	WHERE (@database_id is null or @database_id = prev.database_id)
+)
+GO
+
+CREATE OR ALTER  VIEW qpi.file_stats
+AS SELECT * from qpi.fn_file_stats(null, null, null);
+GO
+
+CREATE OR ALTER  VIEW qpi.db_file_stats
+AS SELECT * from qpi.fn_file_stats(DB_ID(), null, null);
+GO
+
+CREATE OR ALTER  FUNCTION qpi.file_stats_as_of(@when datetime2(0))
+RETURNS TABLE
+AS RETURN (SELECT fs.* FROM qpi.fn_file_stats(null, @when, null) fs
+);
+GO
+
+CREATE OR ALTER  FUNCTION qpi.db_file_stats_as_of(@when datetime2(0))
+RETURNS TABLE
+AS RETURN (SELECT fs.* FROM qpi.fn_file_stats(DB_ID(), @when, null) fs
+);
+GO
+
+CREATE OR ALTER  FUNCTION qpi.file_stats_at(@milestone nvarchar(100))
+RETURNS TABLE
+AS RETURN (
+	SELECT * FROM qpi.fn_file_stats(null, null, @milestone)
+);
+GO
+
+CREATE OR ALTER  FUNCTION qpi.db_file_stats_at(@milestone nvarchar(100))
+RETURNS TABLE
+AS RETURN (
+	SELECT * FROM qpi.fn_file_stats(DB_ID(), null, @milestone)
+);
+GO
+
+CREATE OR ALTER  VIEW qpi.file_stats_snapshots
+AS
+SELECT DISTINCT snapshot_name = title, start_time, end_time
+FROM qpi.io_virtual_file_stats_snapshot FOR SYSTEM_TIME ALL
+GO
+
+CREATE OR ALTER  VIEW qpi.file_stats_history
+AS
+select s.snapshot_name, s.start_time, fs.*
+from qpi.file_stats_snapshots s
+cross apply qpi.file_stats_at(s.snapshot_name) fs;
+GO
+
+CREATE OR ALTER  VIEW qpi.db_file_stats_history
+AS
+select s.snapshot_name, s.start_time, fs.*
+from qpi.file_stats_snapshots s
+cross apply qpi.db_file_stats_at(s.snapshot_name) fs;
+GO
 CREATE OR ALTER  FUNCTION qpi.memory_mb()
 RETURNS int AS
 BEGIN

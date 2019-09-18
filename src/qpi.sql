@@ -912,7 +912,6 @@ and (@date2 is null or rsi2.start_time <= @date2 and @date2 < rsi2.end_time)
 GO
 GO
 
-
 ---------------------------------------------------------------------------------------------------
 -- www.sqlskills.com/blogs/paul/how-to-examine-io-subsystem-latencies-from-within-sql-server/
 ---------------------------------------------------------------------------------------------------
@@ -958,7 +957,11 @@ USING (
 		[num_of_bytes_read], [num_of_bytes_written],
 		[num_of_reads], [num_of_writes]
 	FROM sys.dm_io_virtual_file_stats (db_id(@db_name),NULL) AS [vfs]
+
+
+
 	JOIN sys.master_files AS [mf] ON
+
 		[vfs].[database_id] = [mf].[database_id] AND [vfs].[file_id] = [mf].[file_id]
 		AND (@file_name IS NULL OR [mf].[name] = @file_name)
 	) AS Source
@@ -1011,6 +1014,7 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 			SELECT	s.database_id,s.[file_id],[size_gb]=8.*mf.size/1024/1024,[io_stall_read_ms],[io_stall_write_ms],[io_stall_queued_read_ms],[io_stall_queued_write_ms],[io_stall],
 						[num_of_bytes_read], [num_of_bytes_written], [num_of_reads], [num_of_writes],
 						title = 'Latest', start_time = GETUTCDATE(), end_time = CAST('9999-12-31T00:00:00.0000' AS DATETIME2)
+
 				FROM sys.dm_io_virtual_file_stats (@database_id, null) s
 					JOIN sys.master_files mf ON mf.database_id = s.database_id AND mf.file_id = s.file_id
 			WHERE @milestone is null AND @end_date is null
@@ -1078,6 +1082,7 @@ with cur (	[database_id],[file_id],[size_gb],[io_stall_read_ms],[io_stall_write_
 				OR
 				((@end_date is null and @milestone is null) and prev.end_time > GETUTCDATE())				-- cur is dm_io_virtual_file_stats => get the latest snapshot history record
 			)
+
 		JOIN sys.master_files mf ON cur.database_id = mf.database_id AND cur.file_id = mf.file_id
 	WHERE (@database_id is null or @database_id = prev.database_id)
 )

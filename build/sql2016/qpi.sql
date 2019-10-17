@@ -180,7 +180,7 @@ GO
 CREATE
 PROCEDURE [qpi].[force] @query_id int, @plan_id int = null, @hints nvarchar(4000) = null
 AS BEGIN
-	declare @guide sysname = CONCAT('FORCE', @query_id),
+	declare @guide sysname = CONCAT('QPI-PG-', @query_id),
 			@sql nvarchar(max),
 			@param nvarchar(max),
 			@exists bit = 0;
@@ -214,10 +214,16 @@ GO
 CREATE
 VIEW qpi.db_forced_queries
 AS
-	SELECT text = text COLLATE Latin1_General_100_CI_AS, forced_plan_id = plan_id, hints = null from qpi.db_query_plans where is_forced_plan = 1
+	SELECT name = CONCAT('FPQ-', query_id), query_id, text = text COLLATE Latin1_General_100_CI_AS, forced_plan_id = plan_id, hints = null from qpi.db_query_plans where is_forced_plan = 1
 	UNION ALL
-	SELECT text = query_text COLLATE Latin1_General_100_CI_AS, forced_plan_id = null, hints FROM sys.plan_guides where is_disabled = 0
+	SELECT name, q.query_id, text = query_text COLLATE Latin1_General_100_CI_AS, forced_plan_id = null, hints
+		FROM sys.plan_guides pg
+			LEFT JOIN qpi.db_queries q
+			ON q.text COLLATE Latin1_General_100_CI_AS
+			= pg.query_text COLLATE Latin1_General_100_CI_AS
+		WHERE is_disabled = 0
 GO
+
 
 CREATE  VIEW qpi.bre
 AS

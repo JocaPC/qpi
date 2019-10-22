@@ -1402,7 +1402,10 @@ from (
 union all
 -- PERF_COUNTER_BULK_COUNT
 select	name = pc.counter_name,
-		value = (pc.cntr_value-prev.cntr_value)/(DATEDIFF_BIG(millisecond, prev.start_time, prev.end_time) / 1000.),
+		value = (pc.cntr_value-prev.cntr_value)
+				/(DATEDIFF_BIG(millisecond, prev.start_time, CASE prev.end_time
+																WHEN '9999-12-31 23:59:59.9999999' THEN GETUTCDATE()
+																ELSE prev.end_time	END) / 1000.),
 		object = pc.object_name,
 		instance_name = pc.instance_name,
 		type = pc.cntr_type

@@ -1304,12 +1304,12 @@ perf_counters AS
 perf_counters_prev AS
 (
 	select	counter_name = name, cntr_value = value, object_name = object, instance_name, cntr_type = type, start_time, end_time
-	from qpi.os_performance_counters_snapshot
-	WHERE @as_of is null
-	union all
-	select	counter_name = name, cntr_value = value, object_name = object, instance_name, cntr_type = type, start_time, end_time
-	from qpi.os_performance_counters_snapshot for system_time as of @as_of
-	WHERE @as_of is not null
+	from qpi.os_performance_counters_snapshot for system_time all
+	-- WHERE @as_of is null
+	-- union all
+	-- select	counter_name = name, cntr_value = value, object_name = object, instance_name, cntr_type = type, start_time, end_time
+	-- from qpi.os_performance_counters_snapshot_history -- for system_time as of @as_of
+	-- WHERE @as_of is not null
 ),
 perf_counter_calculation AS (
 --  PERF_COUNTER_RAWCOUNT, PERF_COUNTER_LARGE_RAWCOUNT -> NO PERF_LARGE_RAW_BASE (1073939712) because it is used just to calculate others.

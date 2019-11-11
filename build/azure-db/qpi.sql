@@ -254,13 +254,13 @@ SELECT
 	locked_resource_db = DB_NAME(tl.resource_database_id),
 	q.request_id,
 	tl.resource_associated_entity_id
-FROM qpi.queries q
-	JOIN sys.dm_tran_locks as tl
+FROM qpi.queries q with(nolock)
+	JOIN sys.dm_tran_locks as tl with(nolock)
 		ON q.session_id = tl.request_session_id and q.request_id = tl.request_request_id
 		LEFT JOIN
 		(SELECT p.object_id, p.hobt_id, au.allocation_unit_id
-		 FROM sys.partitions p
-		 LEFT JOIN sys.allocation_units AS au
+		 FROM sys.partitions p with(nolock)
+		 LEFT JOIN sys.allocation_units AS au with(nolock)
 		 ON (au.type IN (1,3) AND au.container_id = p.hobt_id)
             	OR
             (au.type = 2 AND au.container_id = p.partition_id)
@@ -269,7 +269,7 @@ FROM qpi.queries q
 			tl.resource_type IN ('PAGE','KEY','RID','HOBT') AND p.hobt_id = tl.resource_associated_entity_id
 			OR
 			tl.resource_type = 'ALLOCATION_UNIT' AND p.allocation_unit_id = tl.resource_associated_entity_id
-			LEFT JOIN sys.objects obj ON p.object_id = obj.object_id
+			LEFT JOIN sys.objects obj with(nolock) ON p.object_id = obj.object_id
 GO
 
 ------------------------------------------------------------------------------------
@@ -296,18 +296,18 @@ SELECT
 	tl.request_status,
 	tl.request_owner_type,
 	w.resource_description
-FROM qpi.queries blocked
-	INNER JOIN sys.dm_os_waiting_tasks w
+FROM qpi.queries blocked with(nolock)
+	INNER JOIN sys.dm_os_waiting_tasks w with(nolock)
 	ON blocked.session_id = w.session_id
-		INNER JOIN sys.dm_exec_connections conn
+		INNER JOIN sys.dm_exec_connections conn with(nolock)
 		ON conn.session_id =  w.blocking_session_id
 			CROSS APPLY sys.dm_exec_sql_text(conn.most_recent_sql_handle) AS last_query
-	LEFT JOIN sys.dm_tran_locks as tl
+	LEFT JOIN sys.dm_tran_locks as tl with(nolock)
 	 ON tl.lock_owner_address = w.resource_address
 	 LEFT JOIN
 	 	(SELECT p.object_id, p.hobt_id, au.allocation_unit_id
-		 FROM sys.partitions p
-		 LEFT JOIN sys.allocation_units AS au
+		 FROM sys.partitions p with(nolock)
+		 LEFT JOIN sys.allocation_units AS au with(nolock)
 		 ON (au.type IN (1,3) AND au.container_id = p.hobt_id)
             	OR
             (au.type = 2 AND au.container_id = p.partition_id)
@@ -316,7 +316,7 @@ FROM qpi.queries blocked
 			tl.resource_type IN ('PAGE','KEY','RID','HOBT') AND p.hobt_id = tl.resource_associated_entity_id
 			OR
 			tl.resource_type = 'ALLOCATION_UNIT' AND p.allocation_unit_id = tl.resource_associated_entity_id
-		LEFT JOIN sys.objects obj ON p.object_id = obj.object_id
+		LEFT JOIN sys.objects obj with(nolock) ON p.object_id = obj.object_id
 WHERE w.session_id <> w.blocking_session_id
 GO
 
@@ -1173,26 +1173,29 @@ CREATE OR ALTER  VIEW qpi.mem_plan_cache_info
 AS
 SELECT  cached_object = objtype,
         memory_gb = SUM(size_in_bytes /1024 /1024 /1024),
-		plan_count = COUNT_BIG(*)
+		plan_count = COUNT_BIG(*),
+		used_plans = SUM(usecounts),
+		[references] = SUM(refcounts)
     FROM sys.dm_exec_cached_plans
     GROUP BY objtype
 GO
 
 CREATE OR ALTER  VIEW qpi.memory
 AS
-SELECT memory = REPLACE([type], 'MEMORYCLERK_', "")
-     , mem_gb = CAST(sum(pages_kb)/1024.1/1024 AS NUMERIC(6,1))
-	 , mem_perc = CAST(sum(pages_kb)/10.24/ qpi.memory_mb() AS TINYINT)
+SELECT memory = REPLACE(ISNULL([type],'-->  TOTAL USED:'), 'MEMORYCLERK_', "")
+     , gb = CAST(sum(pages_kb)/1024.1/1024 AS NUMERIC(6,1))
+	 , perc = CAST(sum(pages_kb)/10.24/ qpi.memory_mb() AS TINYINT)
    FROM sys.dm_os_memory_clerks
-   GROUP BY type
-   HAVING sum(pages_kb) /1024. /1024 > 0.25
+   GROUP BY type WITH ROLLUP
+   HAVING sum(pages_kb) /1024. /1024 > 0.1
 UNION ALL
-	SELECT memory = '_Total',
-		mem_gb = CAST(ROUND(qpi.memory_mb() /1024., 1) AS NUMERIC(6,1)),
-		mem_perc = 100;
+	SELECT memory = '-->  TOTAL AVAILABLE:',
+		gb = CAST(ROUND(qpi.memory_mb() /1024., 1) AS NUMERIC(6,1)),
+		perc = 100;
 GO
+
 -- www.mssqltips.com/sqlservertip/2393/determine-sql-server-memory-use-by-database-and-object/
-CREATE OR ALTER  VIEW qpi.memory_per_db
+CREATE OR ALTER  VIEW qpi.memory_buffers
 AS
 WITH src AS
 (
@@ -1202,11 +1205,11 @@ database_id, db_buffer_pages = COUNT_BIG(*),
 			modified_perc = (100*SUM(CASE WHEN is_modified = 1 THEN 1 ELSE 0 END))/COUNT_BIG(*)
 FROM sys.dm_os_buffer_descriptors
 --WHERE database_id BETWEEN 5 AND 32766 --> to exclude system databases
-GROUP BY database_id
+GROUP BY database_id WITH ROLLUP
 )
 SELECT
-[db_name] = CASE [database_id] WHEN 32767
-THEN 'Resource DB'
+[db_name] = CASE WHEN [database_id] = 32767 THEN 'Resource DB'
+WHEN [database_id] IS NULL THEN '--> TOTAL:'
 ELSE DB_NAME([database_id]) END,
 buffer_gb = db_buffer_pages / 128 /1024,
 buffer_percent = CONVERT(DECIMAL(6,3),

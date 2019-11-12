@@ -1204,9 +1204,10 @@ SELECT
 	cpu_count,
 	[sql_perc] = cpu_sql,
 	[idle_perc] = cpu_idle,
-    [other_perc] = 100 - cpu_sql - cpu_idle
+    [other_perc] = 100 - cpu_sql - cpu_idle,
+	[time]
    FROM sys.dm_os_sys_info,
-   ( SELECT
+   ( SELECT [time] = GETUTCDATE(),
          cpu_idle = record.value('(./Record/SchedulerMonitorEvent/SystemHealth/SystemIdle)[1]', 'int'),
          cpu_sql = record.value('(./Record/SchedulerMonitorEvent/SystemHealth/ProcessUtilization)[1]', 'int')
                FROM (
@@ -1216,6 +1217,14 @@ SELECT
          AND record LIKE '% %'
 		 ORDER BY TIMESTAMP DESC
 		 ) as x(record)
+
+		UNION ALL
+		 select top 100 [time] = start_time,
+					cpu_idle = null,
+					cpu_sql = avg_cpu_percent
+		from sys.server_resource_stats
+		order by start_time desc
+
 		 ) as y
 GO
 

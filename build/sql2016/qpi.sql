@@ -1097,9 +1097,10 @@ SELECT
 	cpu_count,
 	[sql_perc] = cpu_sql,
 	[idle_perc] = cpu_idle,
-    [other_perc] = 100 - cpu_sql - cpu_idle
+    [other_perc] = 100 - cpu_sql - cpu_idle,
+	[time]
    FROM sys.dm_os_sys_info,
-   ( SELECT
+   ( SELECT [time] = GETUTCDATE(),
          cpu_idle = record.value('(./Record/SchedulerMonitorEvent/SystemHealth/SystemIdle)[1]', 'int'),
          cpu_sql = record.value('(./Record/SchedulerMonitorEvent/SystemHealth/ProcessUtilization)[1]', 'int')
                FROM (

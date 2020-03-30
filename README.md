@@ -69,7 +69,7 @@ QPI library is just a set of views, functions, and utility tables that you can i
 You can download the source and run it in your database. Choose the version based on your SQL Server version:
 - [Azure SQL Managed Instance](https://raw.githubusercontent.com/JocaPC/qpi/master/src/qpi.sql)
 - [Azure SQL Database](https://raw.githubusercontent.com/JocaPC/qpi/master/build/azure-db/qpi.sql)
-- [SQL Server 2017](https://raw.githubusercontent.com/JocaPC/qpi/master/build/sql2017/qpi.sql)
+- [SQL Server 2017](https://raw.githubusercontent.com/JocaPC/qpi/master/build/sql2017/qpi.sql) and higher.
 - [SQL Server 2016](https://raw.githubusercontent.com/JocaPC/qpi/master/build/sql2016/qpi.sql)
  
  All functions, views, and tables are placed in `qpi` schema in your database.

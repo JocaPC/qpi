@@ -10,6 +10,9 @@ IF SCHEMA_ID('qpi') IS NULL
 	EXEC ('CREATE SCHEMA qpi');
 GO
 
+-----------------------------------------------------------------------------
+-- Generic utilities
+-----------------------------------------------------------------------------
 CREATE  FUNCTION qpi.us2min(@microseconds bigint)
 RETURNS INT
 AS BEGIN RETURN ( @microseconds /1000 /1000 /60 ) END;
@@ -50,6 +53,9 @@ AS BEGIN RETURN DATEADD(DAY, ((@time /10000) %100),
 					) END;
 GO
 
+-----------------------------------------------------------------------------
+-- Core Database Query Store functionalities
+-----------------------------------------------------------------------------
 CREATE  FUNCTION qpi.decode_options(@options int)
 RETURNS TABLE
 RETURN (
@@ -143,6 +149,9 @@ from sys.query_store_plan p
 		on p.query_id = q.query_id;
 GO
 
+-----------------------------------------------------------------------------
+-- Core Server-level functionalities
+-----------------------------------------------------------------------------
 
 -- The list of currently executing queries that are probably not in Query Store.
 CREATE  VIEW qpi.queries
@@ -218,6 +227,9 @@ AS BEGIN
 END
 GO
 
+-----------------------------------------------------------------------------
+-- Core Plan forcing functionalities
+-----------------------------------------------------------------------------
 
 CREATE
 PROCEDURE [qpi].[force] @query_id int, @plan_id int = null, @hints nvarchar(4000) = null
@@ -861,8 +873,10 @@ and rsi1.start_time <= @date1 and @date1 < rsi1.end_time
 and (@date2 is null or rsi2.start_time <= @date2 and @date2 < rsi2.end_time)
 );
 GO
-GO
 
+-----------------------------------------------------------------------------
+-- Core Server File statistic functionalities
+-----------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------
 -- www.sqlskills.com/blogs/paul/how-to-examine-io-subsystem-latencies-from-within-sql-server/
 ---------------------------------------------------------------------------------------------------

@@ -81,6 +81,134 @@ GO
 CREATE
 PROCEDURE qpi.clear_db_queries
 AS BEGIN
-	ALTER DATABASE current SET QUERY_STORE CLEAR;
+  DECLARE @sql NVARCHAR(4000) = 'ALTER DATABASE ' + DB_NAME() + ' SET QUERY_STORE CLEAR';
+  EXEC(@sql);
 END
+GO
+
+
+CREATE
+FUNCTION qpi.db_query_plan_exec_stats_as_of(@date datetime2)
+returns table
+as return (
+select	t.query_text_id, q.query_id,
+		text =   CASE LEFT(t.query_sql_text,1) WHEN '(' THEN SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))+1, LEN(t.query_sql_text)) ELSE t.query_sql_text END ,
+		params =  CASE LEFT(t.query_sql_text,1) WHEN '(' THEN SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))-2) ELSE 'N/A' END ,
+		rs.plan_id,
+		rs.execution_type_desc,
+        rs.count_executions,
+        duration_s = CAST(ROUND( rs.avg_duration /1000.0 /1000.0, 2) AS NUMERIC(12,2)),
+        cpu_time_ms = CAST(ROUND(rs.avg_cpu_time /1000.0, 1) AS NUMERIC(12,1)),
+        logical_io_reads_kb = CAST(ROUND(rs.avg_logical_io_reads * 8 /1000.0, 2) AS NUMERIC(12,2)),
+        logical_io_writes_kb = CAST(ROUND(rs.avg_logical_io_writes * 8 /1000.0, 2) AS NUMERIC(12,2)),
+        physical_io_reads_kb = CAST(ROUND(rs.avg_physical_io_reads * 8 /1000.0, 2) AS NUMERIC(12,2)),
+        clr_time_ms = CAST(ROUND(rs.avg_clr_time /1000.0, 1) AS NUMERIC(12,1)),
+        max_used_memory_mb = rs.avg_query_max_used_memory * 8.0 /1000,
+
+        num_physical_io_reads = rs.avg_num_physical_io_reads,
+        log_bytes_used_kb = CAST(ROUND( rs.avg_log_bytes_used /1000.0, 2) AS NUMERIC(12,2)),
+        tempdb_used_mb = CAST(ROUND(rs.avg_tempdb_space_used *8 /1000.0, 2) AS NUMERIC(12,2)),
+
+		start_time = convert(varchar(16), rsi.start_time, 20),
+		end_time = convert(varchar(16), rsi.end_time, 20),
+		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
+		q.context_settings_id, q.query_hash
+from sys.query_store_query_text t
+	join sys.query_store_query q on t.query_text_id = q.query_text_id
+	join sys.query_store_plan p on p.query_id = q.query_id
+	join sys.query_store_runtime_stats rs on rs.plan_id = p.plan_id
+	join sys.query_store_runtime_stats_interval rsi
+			on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
+where (@date is null or @date between rsi.start_time and rsi.end_time)
+);
+GO
+
+CREATE
+VIEW qpi.db_query_plan_exec_stats
+AS SELECT * FROM qpi.db_query_plan_exec_stats_as_of(GETUTCDATE());
+GO
+
+CREATE
+VIEW qpi.db_query_plan_exec_stats_history
+AS SELECT * FROM qpi.db_query_plan_exec_stats_as_of(NULL);
+GO
+
+-- Returns all query plan statistics without currently running values.
+CREATE
+FUNCTION qpi.db_query_plan_exec_stats_ex_as_of(@date datetime2)
+returns table
+as return (
+select	q.query_id,
+		text =   CASE LEFT(t.query_sql_text,1) WHEN '(' THEN SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))+1, LEN(t.query_sql_text)) ELSE t.query_sql_text END ,
+		params =  CASE LEFT(t.query_sql_text,1) WHEN '(' THEN SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))-2) ELSE 'N/A' END ,
+		t.query_text_id, rsi.start_time, rsi.end_time,
+		rs.*, q.query_hash,
+		interval_mi = datediff(mi, rsi.start_time, rsi.end_time)
+from sys.query_store_query_text t
+	join sys.query_store_query q on t.query_text_id = q.query_text_id
+	join sys.query_store_plan p on p.query_id = q.query_id
+	join sys.query_store_runtime_stats rs on rs.plan_id = p.plan_id
+	join sys.query_store_runtime_stats_interval rsi on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
+where @date is null or @date between rsi.start_time and rsi.end_time
+);
+GO
+
+CREATE
+VIEW qpi.db_query_plan_exec_stats_ex
+AS SELECT * FROM qpi.db_query_plan_exec_stats_ex_as_of(GETUTCDATE());
+GO
+--------------------------------------------------------------------------------
+-- The most important view: query statistics:
+--------------------------------------------------------------------------------
+
+-- Returns statistics about all queries as of specified time.
+CREATE  FUNCTION qpi.db_query_exec_stats_as_of(@date datetime2)
+returns table
+return (
+
+WITH query_stats as (
+SELECT	qps.query_id, execution_type_desc,
+		duration_s = AVG(duration_s),
+		count_executions = SUM(count_executions),
+		cpu_time_ms = AVG(cpu_time_ms),
+		logical_io_reads_kb = AVG(logical_io_reads_kb),
+		logical_io_writes_kb = AVG(logical_io_writes_kb),
+		physical_io_reads_kb = AVG(physical_io_reads_kb),
+		clr_time_ms = AVG(clr_time_ms),
+
+		num_physical_io_reads = AVG(num_physical_io_reads),
+		log_bytes_used_kb = AVG(log_bytes_used_kb),
+		tempdb_used_mb = AVG(tempdb_used_mb),
+
+		start_time = MIN(start_time),
+		interval_mi = MIN(interval_mi)
+FROM qpi.db_query_plan_exec_stats_as_of(@date) qps
+GROUP BY query_id, execution_type_desc
+)
+SELECT  text =   CASE LEFT(t.query_sql_text,1) WHEN '(' THEN SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))+1, LEN(t.query_sql_text)) ELSE t.query_sql_text END ,
+		params =  CASE LEFT(t.query_sql_text,1) WHEN '(' THEN SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))-2) ELSE 'N/A' END ,
+		qs.*,
+		t.query_text_id,
+		q.query_hash
+FROM query_stats qs
+	join sys.query_store_query q
+	on q.query_id = qs.query_id
+	join sys.query_store_query_text t
+	on q.query_text_id = t.query_text_id
+
+)
+GO
+
+CREATE  VIEW qpi.db_query_exec_stats
+AS SELECT * FROM  qpi.db_query_exec_stats_as_of(GETUTCDATE());
+GO
+CREATE  VIEW qpi.db_query_exec_stats_history
+AS SELECT * FROM  qpi.db_query_exec_stats_as_of(NULL);
+GO
+
+CREATE  VIEW qpi.db_query_stats
+AS
+SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
+ logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash
+FROM qpi.db_query_exec_stats qes
 GO

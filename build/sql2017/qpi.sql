@@ -380,7 +380,6 @@ FROM qpi.db_query_exec_stats_history qes
 GO
 
 --- Query comparison
-
 CREATE OR ALTER    function qpi.cmp_query_exec_stats (@query_id int, @date1 datetime2, @date2 datetime2)
 returns table
 return (
@@ -432,6 +431,7 @@ return (
 );
 GO
 
+
 CREATE OR ALTER
 FUNCTION qpi.db_query_plan_exec_stats_diff (@date1 datetime2, @date2 datetime2)
 returns table
@@ -461,7 +461,6 @@ and rsi1.start_time <= @date1 and @date1 < rsi1.end_time
 and (@date2 is null or rsi2.start_time <= @date2 and @date2 < rsi2.end_time)
 );
 GO
-
 
 -----------------------------------------------------------------------------
 -- Core Server-level functionalities

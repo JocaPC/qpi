@@ -148,66 +148,6 @@ from sys.query_store_plan p
 	join qpi.db_queries q
 		on p.query_id = q.query_id;
 GO
-
-
------------------------------------------------------------------------------
--- Core Database Query Store wait stat functionalities
------------------------------------------------------------------------------
-CREATE
-function qpi.db_query_plan_wait_stats_as_of(@date datetime2)
-	returns table
-as return (
-select
-		text =   IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))+1, LEN(t.query_sql_text)), t.query_sql_text) ,
-		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))-2), "") ,
-		category = ws.wait_category_desc,
-		wait_time_ms = CAST(ROUND(ws.avg_query_wait_time_ms, 1) AS NUMERIC(12,1)),
-		t.query_text_id, q.query_id, ws.plan_id, ws.execution_type_desc,
-		rsi.start_time, rsi.end_time,
-		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
-		ws.runtime_stats_interval_id, ws.wait_stats_id, q.query_hash
-from sys.query_store_query_text t
-	join sys.query_store_query q on t.query_text_id = q.query_text_id
-	join sys.query_store_plan p on p.query_id = q.query_id
-	join sys.query_store_wait_stats ws on ws.plan_id = p.plan_id
-	join sys.query_store_runtime_stats_interval rsi on ws.runtime_stats_interval_id = rsi.runtime_stats_interval_id
-where @date is null or @date between rsi.start_time and rsi.end_time
-);
-go
-
-CREATE
-VIEW qpi.db_query_plan_wait_stats
-AS SELECT * FROM  qpi.db_query_plan_wait_stats_as_of(GETUTCDATE());
-GO
-
-CREATE
-function qpi.db_query_wait_stats_as_of(@date datetime2)
-	returns table
-as return (
-	select
-		text = min(text),
-		params = min(params),
-		category, wait_time_ms = sum(wait_time_ms),
-		query_text_id,
-		query_id,
-		execution_type_desc,
-		start_time = min(start_time), end_time = min(end_time),
-		interval_mi = min(interval_mi)
-from qpi.db_query_plan_wait_stats_as_of(@date)
-group by query_id, query_text_id, category, execution_type_desc
-);
-go
-
-CREATE
-VIEW qpi.db_query_wait_stats
-as select * from qpi.db_query_wait_stats_as_of(GETUTCDATE())
-go
-
-CREATE
-VIEW qpi.db_query_wait_stats_history
-as select * from qpi.db_query_wait_stats_as_of(null)
-go
-
 -----------------------------------------------------------------------------
 -- Advanced Database Query Store functionalities
 -----------------------------------------------------------------------------
@@ -336,7 +276,6 @@ FROM qpi.db_query_exec_stats_history qes
 GO
 
 --- Query comparison
-
 CREATE    function qpi.cmp_query_exec_stats (@query_id int, @date1 datetime2, @date2 datetime2)
 returns table
 return (
@@ -388,6 +327,7 @@ return (
 );
 GO
 
+
 CREATE
 FUNCTION qpi.db_query_plan_exec_stats_diff (@date1 datetime2, @date2 datetime2)
 returns table
@@ -413,7 +353,6 @@ and rsi1.start_time <= @date1 and @date1 < rsi1.end_time
 and (@date2 is null or rsi2.start_time <= @date2 and @date2 < rsi2.end_time)
 );
 GO
-
 
 -----------------------------------------------------------------------------
 -- Core Server-level functionalities

@@ -173,7 +173,7 @@ from sys.query_store_plan p
 		on p.query_id = q.query_id;
 GO
 
-#if !(defined(SQL2061) || defined(AzDw))
+#if !(defined(SQL2016) || defined(AzDw))
 -----------------------------------------------------------------------------
 -- Core Database Query Store wait stat functionalities
 -----------------------------------------------------------------------------
@@ -231,7 +231,7 @@ CREATE_OR_ALTER
 VIEW qpi.db_query_wait_stats_history
 as select * from qpi.db_query_wait_stats_as_of(null)
 go
-
+#endif
 -----------------------------------------------------------------------------
 -- Advanced Database Query Store functionalities
 -----------------------------------------------------------------------------
@@ -253,7 +253,7 @@ select	t.query_text_id, q.query_id,
         physical_io_reads_kb = CAST(ROUND(rs.avg_physical_io_reads * 8 /1000.0, 2) AS NUMERIC(12,2)), 
         clr_time_ms = CAST(ROUND(rs.avg_clr_time /1000.0, 1) AS NUMERIC(12,1)), 
         max_used_memory_mb = rs.avg_query_max_used_memory * 8.0 /1000,
-#ifndef SQL2016
+#if !(defined(SQL2016) || defined(AzDw))
         num_physical_io_reads = rs.avg_num_physical_io_reads, 
         log_bytes_used_kb = CAST(ROUND( rs.avg_log_bytes_used /1000.0, 2) AS NUMERIC(12,2)),
         tempdb_used_mb = CAST(ROUND(rs.avg_tempdb_space_used *8 /1000.0, 2) AS NUMERIC(12,2)),
@@ -323,7 +323,7 @@ SELECT	qps.query_id, execution_type_desc,
 		logical_io_writes_kb = AVG(logical_io_writes_kb),
 		physical_io_reads_kb = AVG(physical_io_reads_kb),
 		clr_time_ms = AVG(clr_time_ms),
-#ifndef SQL2016
+#if !(defined(SQL2016) || defined(AzDw))
 		num_physical_io_reads = AVG(num_physical_io_reads),
 		log_bytes_used_kb = AVG(log_bytes_used_kb),
 		tempdb_used_mb = AVG(tempdb_used_mb),
@@ -402,9 +402,8 @@ FROM qpi.db_query_exec_stats_history qes
 				AND qes.execution_type_desc = ws.execution_type_desc
 #endif
 GO
-
---- Query comparison
 #if !(defined(AzDw))
+--- Query comparison
 CREATE_OR_ALTER   function qpi.cmp_query_exec_stats (@query_id int, @date1 datetime2, @date2 datetime2)
 returns table
 return (
@@ -456,6 +455,7 @@ return (
 );
 GO
 #endif
+#ifndef AzDw
 CREATE_OR_ALTER
 FUNCTION qpi.db_query_plan_exec_stats_diff (@date1 datetime2, @date2 datetime2)
 returns table
@@ -468,7 +468,7 @@ return (
 		d_cpu_time_perc = iif(rs2.avg_cpu_time=0, null, ROUND(100*(1 - rs1.avg_cpu_time/rs2.avg_cpu_time),0)),
 		d_physical_io_reads = rs2.avg_physical_io_reads - rs1.avg_physical_io_reads,
 		d_physical_io_reads_perc = iif(rs2.avg_physical_io_reads=0, null, ROUND(100*(1 - rs1.avg_physical_io_reads/rs2.avg_physical_io_reads),0)),
-#ifndef SQL2016
+#if !(defined(SQL2016) || defined(AzDw))
 		d_log_bytes_used = rs2.avg_log_bytes_used - rs1.avg_log_bytes_used,
 		d_log_bytes_used_perc = iif(rs2.avg_log_bytes_used=0, null, ROUND(100*(1 - rs1.avg_log_bytes_used/rs2.avg_log_bytes_used),0)),		
 #endif
@@ -485,8 +485,7 @@ and rsi1.start_time <= @date1 and @date1 < rsi1.end_time
 and (@date2 is null or rsi2.start_time <= @date2 and @date2 < rsi2.end_time)
 );
 GO
-#endif
-#ifndef AzDw
+
 -----------------------------------------------------------------------------
 -- Core Server-level functionalities
 -----------------------------------------------------------------------------

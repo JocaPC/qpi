@@ -209,6 +209,212 @@ as select * from qpi.db_query_wait_stats_as_of(null)
 go
 
 -----------------------------------------------------------------------------
+-- Advanced Database Query Store functionalities
+-----------------------------------------------------------------------------
+
+CREATE
+FUNCTION qpi.db_query_plan_exec_stats_as_of(@date datetime2)
+returns table
+as return (
+select	t.query_text_id, q.query_id,
+		text =   IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))+1, LEN(t.query_sql_text)), t.query_sql_text) ,
+		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))-2), "") ,
+		rs.plan_id,
+		rs.execution_type_desc,
+        rs.count_executions,
+        duration_s = CAST(ROUND( rs.avg_duration /1000.0 /1000.0, 2) AS NUMERIC(12,2)),
+        cpu_time_ms = CAST(ROUND(rs.avg_cpu_time /1000.0, 1) AS NUMERIC(12,1)),
+        logical_io_reads_kb = CAST(ROUND(rs.avg_logical_io_reads * 8 /1000.0, 2) AS NUMERIC(12,2)),
+        logical_io_writes_kb = CAST(ROUND(rs.avg_logical_io_writes * 8 /1000.0, 2) AS NUMERIC(12,2)),
+        physical_io_reads_kb = CAST(ROUND(rs.avg_physical_io_reads * 8 /1000.0, 2) AS NUMERIC(12,2)),
+        clr_time_ms = CAST(ROUND(rs.avg_clr_time /1000.0, 1) AS NUMERIC(12,1)),
+        max_used_memory_mb = rs.avg_query_max_used_memory * 8.0 /1000,
+		start_time = convert(varchar(16), rsi.start_time, 20),
+		end_time = convert(varchar(16), rsi.end_time, 20),
+		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
+		q.context_settings_id, q.query_hash
+from sys.query_store_query_text t
+	join sys.query_store_query q on t.query_text_id = q.query_text_id
+	join sys.query_store_plan p on p.query_id = q.query_id
+	join sys.query_store_runtime_stats rs on rs.plan_id = p.plan_id
+	join sys.query_store_runtime_stats_interval rsi
+			on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
+where (@date is null or @date between rsi.start_time and rsi.end_time)
+);
+GO
+
+CREATE
+VIEW qpi.db_query_plan_exec_stats
+AS SELECT * FROM qpi.db_query_plan_exec_stats_as_of(GETUTCDATE());
+GO
+
+CREATE
+VIEW qpi.db_query_plan_exec_stats_history
+AS SELECT * FROM qpi.db_query_plan_exec_stats_as_of(NULL);
+GO
+
+-- Returns all query plan statistics without currently running values.
+CREATE
+FUNCTION qpi.db_query_plan_exec_stats_ex_as_of(@date datetime2)
+returns table
+as return (
+select	q.query_id,
+		text =   IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))+1, LEN(t.query_sql_text)), t.query_sql_text) ,
+		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))-2), "") ,
+		t.query_text_id, rsi.start_time, rsi.end_time,
+		rs.*, q.query_hash,
+		interval_mi = datediff(mi, rsi.start_time, rsi.end_time)
+from sys.query_store_query_text t
+	join sys.query_store_query q on t.query_text_id = q.query_text_id
+	join sys.query_store_plan p on p.query_id = q.query_id
+	join sys.query_store_runtime_stats rs on rs.plan_id = p.plan_id
+	join sys.query_store_runtime_stats_interval rsi on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
+where @date is null or @date between rsi.start_time and rsi.end_time
+);
+GO
+
+CREATE
+VIEW qpi.db_query_plan_exec_stats_ex
+AS SELECT * FROM qpi.db_query_plan_exec_stats_ex_as_of(GETUTCDATE());
+GO
+--------------------------------------------------------------------------------
+-- the most important view: query statistics:
+--------------------------------------------------------------------------------
+-- Returns statistics about all queries as of specified time.
+CREATE  FUNCTION qpi.db_query_exec_stats_as_of(@date datetime2)
+returns table
+return (
+
+WITH query_stats as (
+SELECT	qps.query_id, execution_type_desc,
+		duration_s = AVG(duration_s),
+		count_executions = SUM(count_executions),
+		cpu_time_ms = AVG(cpu_time_ms),
+		logical_io_reads_kb = AVG(logical_io_reads_kb),
+		logical_io_writes_kb = AVG(logical_io_writes_kb),
+		physical_io_reads_kb = AVG(physical_io_reads_kb),
+		clr_time_ms = AVG(clr_time_ms),
+		start_time = MIN(start_time),
+		interval_mi = MIN(interval_mi)
+FROM qpi.db_query_plan_exec_stats_as_of(@date) qps
+GROUP BY query_id, execution_type_desc
+)
+SELECT  text =   IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))+1, LEN(t.query_sql_text)), t.query_sql_text) ,
+		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))-2), "") ,
+		qs.*,
+		t.query_text_id,
+		q.query_hash
+FROM query_stats qs
+	join sys.query_store_query q
+	on q.query_id = qs.query_id
+	join sys.query_store_query_text t
+	on q.query_text_id = t.query_text_id
+
+)
+GO
+
+CREATE  VIEW qpi.db_query_exec_stats
+AS SELECT * FROM  qpi.db_query_exec_stats_as_of(GETUTCDATE());
+GO
+CREATE  VIEW qpi.db_query_exec_stats_history
+AS SELECT * FROM  qpi.db_query_exec_stats_as_of(NULL);
+GO
+
+CREATE  VIEW qpi.db_query_stats
+AS
+SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
+ logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash
+FROM qpi.db_query_exec_stats qes
+GO
+
+CREATE  VIEW
+qpi.db_query_stats_history
+AS
+SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
+ logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash
+FROM qpi.db_query_exec_stats_history qes
+GO
+
+--- Query comparison
+
+CREATE    function qpi.cmp_query_exec_stats (@query_id int, @date1 datetime2, @date2 datetime2)
+returns table
+return (
+	select a.[key], a.value value1, b.value value2
+	from
+	(select [key], value
+	from openjson(
+	(select *
+		from qpi.db_query_exec_stats_as_of(@date1)
+		where query_id = @query_id
+		for json path, without_array_wrapper)
+	)) as a ([key], value)
+	join
+	(select [key], value
+	from openjson(
+	(select *
+		from qpi.db_query_exec_stats_as_of(@date2)
+		where query_id = @query_id
+		for json path, without_array_wrapper)
+	)) as b ([key], value)
+	on a.[key] = b.[key]
+	where a.value <> b.value
+);
+GO
+
+CREATE
+FUNCTION qpi.cmp_query_plans (@plan_id1 int, @plan_id2 int)
+returns table
+return (
+	select a.[key], a.value value1, b.value value2
+	from
+	(select [key], value
+	from openjson(
+	(select *
+		from sys.query_store_plan
+		where plan_id = @plan_id1
+		for json path, without_array_wrapper)
+	)) as a ([key], value)
+	join
+	(select [key], value
+	from openjson(
+	(select *
+		from sys.query_store_plan
+		where plan_id = @plan_id2
+		for json path, without_array_wrapper)
+	)) as b ([key], value)
+	on a.[key] = b.[key]
+	where a.value <> b.value
+);
+GO
+
+CREATE
+FUNCTION qpi.db_query_plan_exec_stats_diff (@date1 datetime2, @date2 datetime2)
+returns table
+return (
+	select baseline = convert(varchar(16), rsi1.start_time, 20), interval = convert(varchar(16), rsi2.start_time, 20),
+		query_text = t.query_sql_text,
+		d_duration = rs2.avg_duration - rs1.avg_duration,
+		d_duration_perc = iif(rs2.avg_duration=0, null, ROUND(100*(1 - rs1.avg_duration/rs2.avg_duration),0)),
+		d_cpu_time = rs2.avg_cpu_time - rs1.avg_cpu_time,
+		d_cpu_time_perc = iif(rs2.avg_cpu_time=0, null, ROUND(100*(1 - rs1.avg_cpu_time/rs2.avg_cpu_time),0)),
+		d_physical_io_reads = rs2.avg_physical_io_reads - rs1.avg_physical_io_reads,
+		d_physical_io_reads_perc = iif(rs2.avg_physical_io_reads=0, null, ROUND(100*(1 - rs1.avg_physical_io_reads/rs2.avg_physical_io_reads),0)),
+		q.query_text_id, q.query_id, p.plan_id
+from sys.query_store_query_text t
+	join sys.query_store_query q on t.query_text_id = q.query_text_id
+	join sys.query_store_plan p on p.query_id = q.query_id
+	join sys.query_store_runtime_stats rs1 on rs1.plan_id = p.plan_id
+	join sys.query_store_runtime_stats_interval rsi1 on rs1.runtime_stats_interval_id = rsi1.runtime_stats_interval_id
+	left join sys.query_store_runtime_stats rs2 on rs2.plan_id = p.plan_id
+	left join sys.query_store_runtime_stats_interval rsi2 on rs2.runtime_stats_interval_id = rsi2.runtime_stats_interval_id
+where rsi1.runtime_stats_interval_id <> rsi2.runtime_stats_interval_id
+and rsi1.start_time <= @date1 and @date1 < rsi1.end_time
+and (@date2 is null or rsi2.start_time <= @date2 and @date2 < rsi2.end_time)
+);
+GO
+
+-----------------------------------------------------------------------------
 -- Core Server-level functionalities
 -----------------------------------------------------------------------------
 
@@ -729,212 +935,6 @@ VIEW qpi.wait_stats
 AS SELECT * FROM qpi.wait_stats_ex
 WHERE category_id IS NOT NULL
 GO
------------------------------------------------------------------------------
--- Advanced Database Query Store functionalities
------------------------------------------------------------------------------
-
-CREATE
-FUNCTION qpi.db_query_plan_exec_stats_as_of(@date datetime2)
-returns table
-as return (
-select	t.query_text_id, q.query_id,
-		text =   IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))+1, LEN(t.query_sql_text)), t.query_sql_text) ,
-		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))-2), "") ,
-		rs.plan_id,
-		rs.execution_type_desc,
-        rs.count_executions,
-        duration_s = CAST(ROUND( rs.avg_duration /1000.0 /1000.0, 2) AS NUMERIC(12,2)),
-        cpu_time_ms = CAST(ROUND(rs.avg_cpu_time /1000.0, 1) AS NUMERIC(12,1)),
-        logical_io_reads_kb = CAST(ROUND(rs.avg_logical_io_reads * 8 /1000.0, 2) AS NUMERIC(12,2)),
-        logical_io_writes_kb = CAST(ROUND(rs.avg_logical_io_writes * 8 /1000.0, 2) AS NUMERIC(12,2)),
-        physical_io_reads_kb = CAST(ROUND(rs.avg_physical_io_reads * 8 /1000.0, 2) AS NUMERIC(12,2)),
-        clr_time_ms = CAST(ROUND(rs.avg_clr_time /1000.0, 1) AS NUMERIC(12,1)),
-        max_used_memory_mb = rs.avg_query_max_used_memory * 8.0 /1000,
-		start_time = convert(varchar(16), rsi.start_time, 20),
-		end_time = convert(varchar(16), rsi.end_time, 20),
-		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
-		q.context_settings_id, q.query_hash
-from sys.query_store_query_text t
-	join sys.query_store_query q on t.query_text_id = q.query_text_id
-	join sys.query_store_plan p on p.query_id = q.query_id
-	join sys.query_store_runtime_stats rs on rs.plan_id = p.plan_id
-	join sys.query_store_runtime_stats_interval rsi
-			on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
-where (@date is null or @date between rsi.start_time and rsi.end_time)
-);
-GO
-
-CREATE
-VIEW qpi.db_query_plan_exec_stats
-AS SELECT * FROM qpi.db_query_plan_exec_stats_as_of(GETUTCDATE());
-GO
-
-CREATE
-VIEW qpi.db_query_plan_exec_stats_history
-AS SELECT * FROM qpi.db_query_plan_exec_stats_as_of(NULL);
-GO
-
--- Returns all query plan statistics without currently running values.
-CREATE
-FUNCTION qpi.db_query_plan_exec_stats_ex_as_of(@date datetime2)
-returns table
-as return (
-select	q.query_id,
-		text =   IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))+1, LEN(t.query_sql_text)), t.query_sql_text) ,
-		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))-2), "") ,
-		t.query_text_id, rsi.start_time, rsi.end_time,
-		rs.*, q.query_hash,
-		interval_mi = datediff(mi, rsi.start_time, rsi.end_time)
-from sys.query_store_query_text t
-	join sys.query_store_query q on t.query_text_id = q.query_text_id
-	join sys.query_store_plan p on p.query_id = q.query_id
-	join sys.query_store_runtime_stats rs on rs.plan_id = p.plan_id
-	join sys.query_store_runtime_stats_interval rsi on rs.runtime_stats_interval_id = rsi.runtime_stats_interval_id
-where @date is null or @date between rsi.start_time and rsi.end_time
-);
-GO
-
-CREATE
-VIEW qpi.db_query_plan_exec_stats_ex
-AS SELECT * FROM qpi.db_query_plan_exec_stats_ex_as_of(GETUTCDATE());
-GO
---------------------------------------------------------------------------------
--- the most important view: query statistics:
---------------------------------------------------------------------------------
--- Returns statistics about all queries as of specified time.
-CREATE  FUNCTION qpi.db_query_exec_stats_as_of(@date datetime2)
-returns table
-return (
-
-WITH query_stats as (
-SELECT	qps.query_id, execution_type_desc,
-		duration_s = AVG(duration_s),
-		count_executions = SUM(count_executions),
-		cpu_time_ms = AVG(cpu_time_ms),
-		logical_io_reads_kb = AVG(logical_io_reads_kb),
-		logical_io_writes_kb = AVG(logical_io_writes_kb),
-		physical_io_reads_kb = AVG(physical_io_reads_kb),
-		clr_time_ms = AVG(clr_time_ms),
-		start_time = MIN(start_time),
-		interval_mi = MIN(interval_mi)
-FROM qpi.db_query_plan_exec_stats_as_of(@date) qps
-GROUP BY query_id, execution_type_desc
-)
-SELECT  text =   IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))+1, LEN(t.query_sql_text)), t.query_sql_text) ,
-		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))-2), "") ,
-		qs.*,
-		t.query_text_id,
-		q.query_hash
-FROM query_stats qs
-	join sys.query_store_query q
-	on q.query_id = qs.query_id
-	join sys.query_store_query_text t
-	on q.query_text_id = t.query_text_id
-
-)
-GO
-
-CREATE  VIEW qpi.db_query_exec_stats
-AS SELECT * FROM  qpi.db_query_exec_stats_as_of(GETUTCDATE());
-GO
-CREATE  VIEW qpi.db_query_exec_stats_history
-AS SELECT * FROM  qpi.db_query_exec_stats_as_of(NULL);
-GO
-
-CREATE  VIEW qpi.db_query_stats
-AS
-SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
- logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash
-FROM qpi.db_query_exec_stats qes
-GO
-
-CREATE  VIEW
-qpi.db_query_stats_history
-AS
-SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
- logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash
-FROM qpi.db_query_exec_stats_history qes
-GO
-
---- Query comparison
-
-CREATE    function qpi.cmp_query_exec_stats (@query_id int, @date1 datetime2, @date2 datetime2)
-returns table
-return (
-	select a.[key], a.value value1, b.value value2
-	from
-	(select [key], value
-	from openjson(
-	(select *
-		from qpi.db_query_exec_stats_as_of(@date1)
-		where query_id = @query_id
-		for json path, without_array_wrapper)
-	)) as a ([key], value)
-	join
-	(select [key], value
-	from openjson(
-	(select *
-		from qpi.db_query_exec_stats_as_of(@date2)
-		where query_id = @query_id
-		for json path, without_array_wrapper)
-	)) as b ([key], value)
-	on a.[key] = b.[key]
-	where a.value <> b.value
-);
-GO
-
-CREATE
-FUNCTION qpi.cmp_query_plans (@plan_id1 int, @plan_id2 int)
-returns table
-return (
-	select a.[key], a.value value1, b.value value2
-	from
-	(select [key], value
-	from openjson(
-	(select *
-		from sys.query_store_plan
-		where plan_id = @plan_id1
-		for json path, without_array_wrapper)
-	)) as a ([key], value)
-	join
-	(select [key], value
-	from openjson(
-	(select *
-		from sys.query_store_plan
-		where plan_id = @plan_id2
-		for json path, without_array_wrapper)
-	)) as b ([key], value)
-	on a.[key] = b.[key]
-	where a.value <> b.value
-);
-GO
-
-CREATE
-FUNCTION qpi.db_query_plan_exec_stats_diff (@date1 datetime2, @date2 datetime2)
-returns table
-return (
-	select baseline = convert(varchar(16), rsi1.start_time, 20), interval = convert(varchar(16), rsi2.start_time, 20),
-		query_text = t.query_sql_text,
-		d_duration = rs2.avg_duration - rs1.avg_duration,
-		d_duration_perc = iif(rs2.avg_duration=0, null, ROUND(100*(1 - rs1.avg_duration/rs2.avg_duration),0)),
-		d_cpu_time = rs2.avg_cpu_time - rs1.avg_cpu_time,
-		d_cpu_time_perc = iif(rs2.avg_cpu_time=0, null, ROUND(100*(1 - rs1.avg_cpu_time/rs2.avg_cpu_time),0)),
-		d_physical_io_reads = rs2.avg_physical_io_reads - rs1.avg_physical_io_reads,
-		d_physical_io_reads_perc = iif(rs2.avg_physical_io_reads=0, null, ROUND(100*(1 - rs1.avg_physical_io_reads/rs2.avg_physical_io_reads),0)),
-		q.query_text_id, q.query_id, p.plan_id
-from sys.query_store_query_text t
-	join sys.query_store_query q on t.query_text_id = q.query_text_id
-	join sys.query_store_plan p on p.query_id = q.query_id
-	join sys.query_store_runtime_stats rs1 on rs1.plan_id = p.plan_id
-	join sys.query_store_runtime_stats_interval rsi1 on rs1.runtime_stats_interval_id = rsi1.runtime_stats_interval_id
-	left join sys.query_store_runtime_stats rs2 on rs2.plan_id = p.plan_id
-	left join sys.query_store_runtime_stats_interval rsi2 on rs2.runtime_stats_interval_id = rsi2.runtime_stats_interval_id
-where rsi1.runtime_stats_interval_id <> rsi2.runtime_stats_interval_id
-and rsi1.start_time <= @date1 and @date1 < rsi1.end_time
-and (@date2 is null or rsi2.start_time <= @date2 and @date2 < rsi2.end_time)
-);
-GO
-
 -----------------------------------------------------------------------------
 -- Core Server File statistic functionalities
 -----------------------------------------------------------------------------

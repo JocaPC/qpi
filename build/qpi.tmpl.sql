@@ -173,6 +173,65 @@ from sys.query_store_plan p
 		on p.query_id = q.query_id;
 GO
 
+#if !(defined(SQL2061) || defined(AzDw))
+-----------------------------------------------------------------------------
+-- Core Database Query Store wait stat functionalities
+-----------------------------------------------------------------------------
+CREATE_OR_ALTER
+function qpi.db_query_plan_wait_stats_as_of(@date datetime2)
+	returns table
+as return (
+select	 
+		text =  QUERYTEXT(t.query_sql_text),
+		params = QUERYPARAM(t.query_sql_text),
+		category = ws.wait_category_desc, 
+		wait_time_ms = CAST(ROUND(ws.avg_query_wait_time_ms, 1) AS NUMERIC(12,1)),
+		t.query_text_id, q.query_id, ws.plan_id, ws.execution_type_desc, 
+		rsi.start_time, rsi.end_time,
+		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
+		ws.runtime_stats_interval_id, ws.wait_stats_id, q.query_hash
+from sys.query_store_query_text t
+	join sys.query_store_query q on t.query_text_id = q.query_text_id
+	join sys.query_store_plan p on p.query_id = q.query_id
+	join sys.query_store_wait_stats ws on ws.plan_id = p.plan_id
+	join sys.query_store_runtime_stats_interval rsi on ws.runtime_stats_interval_id = rsi.runtime_stats_interval_id
+where @date is null or @date between rsi.start_time and rsi.end_time 
+);
+go
+
+CREATE_OR_ALTER
+VIEW qpi.db_query_plan_wait_stats
+AS SELECT * FROM  qpi.db_query_plan_wait_stats_as_of(GETUTCDATE());
+GO
+
+CREATE_OR_ALTER
+function qpi.db_query_wait_stats_as_of(@date datetime2)
+	returns table
+as return (
+	select	
+		text = min(text),
+		params = min(params),
+		category, wait_time_ms = sum(wait_time_ms),
+		query_text_id, 
+		query_id,
+		execution_type_desc,
+		start_time = min(start_time), end_time = min(end_time),
+		interval_mi = min(interval_mi)
+from qpi.db_query_plan_wait_stats_as_of(@date)
+group by query_id, query_text_id, category, execution_type_desc
+);
+go
+
+CREATE_OR_ALTER
+VIEW qpi.db_query_wait_stats
+as select * from qpi.db_query_wait_stats_as_of(GETUTCDATE())
+go
+
+CREATE_OR_ALTER
+VIEW qpi.db_query_wait_stats_history
+as select * from qpi.db_query_wait_stats_as_of(null)
+go
+#endif
 -----------------------------------------------------------------------------
 -- Core Server-level functionalities
 -----------------------------------------------------------------------------
@@ -699,65 +758,11 @@ CREATE_OR_ALTER
 VIEW qpi.wait_stats_history
 AS SELECT * FROM  qpi.wait_stats_as_of(null);
 GO
+
+#endif
 -----------------------------------------------------------------------------
 -- Advanced Database Query Store functionalities
 -----------------------------------------------------------------------------
-CREATE_OR_ALTER
-function qpi.db_query_plan_wait_stats_as_of(@date datetime2)
-	returns table
-as return (
-select	 
-		text =  QUERYTEXT(t.query_sql_text),
-		params = QUERYPARAM(t.query_sql_text),
-		category = ws.wait_category_desc, 
-		wait_time_ms = CAST(ROUND(ws.avg_query_wait_time_ms, 1) AS NUMERIC(12,1)),
-		t.query_text_id, q.query_id, ws.plan_id, ws.execution_type_desc, 
-		rsi.start_time, rsi.end_time,
-		interval_mi = datediff(mi, rsi.start_time, rsi.end_time),
-		ws.runtime_stats_interval_id, ws.wait_stats_id, q.query_hash
-from sys.query_store_query_text t
-	join sys.query_store_query q on t.query_text_id = q.query_text_id
-	join sys.query_store_plan p on p.query_id = q.query_id
-	join sys.query_store_wait_stats ws on ws.plan_id = p.plan_id
-	join sys.query_store_runtime_stats_interval rsi on ws.runtime_stats_interval_id = rsi.runtime_stats_interval_id
-where @date is null or @date between rsi.start_time and rsi.end_time 
-);
-go
-
-CREATE_OR_ALTER
-VIEW qpi.db_query_plan_wait_stats
-AS SELECT * FROM  qpi.db_query_plan_wait_stats_as_of(GETUTCDATE());
-GO
-
-CREATE_OR_ALTER
-function qpi.db_query_wait_stats_as_of(@date datetime2)
-	returns table
-as return (
-	select	
-		text = min(text),
-		params = min(params),
-		category, wait_time_ms = sum(wait_time_ms),
-		query_text_id, 
-		query_id,
-		execution_type_desc,
-		start_time = min(start_time), end_time = min(end_time),
-		interval_mi = min(interval_mi)
-from qpi.db_query_plan_wait_stats_as_of(@date)
-group by query_id, query_text_id, category, execution_type_desc
-);
-go
-
-CREATE_OR_ALTER
-VIEW qpi.db_query_wait_stats
-as select * from qpi.db_query_wait_stats_as_of(GETUTCDATE())
-go
-
-CREATE_OR_ALTER
-VIEW qpi.db_query_wait_stats_history
-as select * from qpi.db_query_wait_stats_as_of(null)
-go
-#endif
--- END wait statistics
 
 CREATE_OR_ALTER
 FUNCTION qpi.db_query_plan_exec_stats_as_of(@date datetime2)

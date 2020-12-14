@@ -80,4 +80,4 @@ BEGIN
     SELECT @name = (SELECT TOP 1 [name] FROM sys.objects WHERE [type] = 'U'  AND SCHEMA_NAME(schema_id) = 'qpi'  AND [name] > @name ORDER BY [name])
 END
 GO
-DROP SCHEMA IF EXISTS qpi;
+DROP SCHEMA qpi;

@@ -381,7 +381,7 @@ GO
 CREATE_OR_ALTER VIEW
 qpi.db_query_stats_history
 AS
-#ifndef SQL2016
+#if !(defined(SQL2016) || defined(AzDw))
 WITH ws AS(
 	SELECT query_id, start_time, execution_type_desc,
 			wait_time_ms = SUM(wait_time_ms)
@@ -390,13 +390,13 @@ WITH ws AS(
 )
 #endif
 SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
-#ifndef SQL2016
+#if !(defined(SQL2016) || defined(AzDw))
  wait_time_ms, 
  log_bytes_used_kb,
 #endif
  logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash
 FROM qpi.db_query_exec_stats_history qes
-#ifndef SQL2016
+#if !(defined(SQL2016) || defined(AzDw))
 	LEFT JOIN ws ON qes.query_id = ws.query_id
 				AND qes.start_time = ws.start_time				
 				AND qes.execution_type_desc = ws.execution_type_desc
@@ -404,7 +404,7 @@ FROM qpi.db_query_exec_stats_history qes
 GO
 
 --- Query comparison
-
+#if !(defined(AzDw))
 CREATE_OR_ALTER   function qpi.cmp_query_exec_stats (@query_id int, @date1 datetime2, @date2 datetime2)
 returns table
 return (
@@ -455,7 +455,7 @@ return (
 	where a.value <> b.value
 );
 GO
-
+#endif
 CREATE_OR_ALTER
 FUNCTION qpi.db_query_plan_exec_stats_diff (@date1 datetime2, @date2 datetime2)
 returns table
@@ -486,10 +486,10 @@ and (@date2 is null or rsi2.start_time <= @date2 and @date2 < rsi2.end_time)
 );
 GO
 #endif
+#ifndef AzDw
 -----------------------------------------------------------------------------
 -- Core Server-level functionalities
 -----------------------------------------------------------------------------
-#ifndef AzDw
 -- The list of currently executing queries that are probably not in Query Store.
 CREATE_OR_ALTER VIEW qpi.queries
 AS
@@ -556,7 +556,7 @@ on q.session_id = mg.session_id
 and q.request_id = mg.request_id
 GO
 #endif
-#ifndef AzDW
+#ifndef AzDw
 CREATE_OR_ALTER
 PROCEDURE qpi.clear_db_queries
 AS BEGIN
@@ -564,10 +564,10 @@ AS BEGIN
 END
 GO
 #endif
+#ifndef AzDw
 -----------------------------------------------------------------------------
 -- Core Plan forcing functionalities
 -----------------------------------------------------------------------------
-#ifndef AzDw
 CREATE_OR_ALTER
 PROCEDURE [qpi].[force] @query_id int, @plan_id int = null, @hints nvarchar(4000) = null
 AS BEGIN

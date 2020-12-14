@@ -414,10 +414,10 @@ and (@date2 is null or rsi2.start_time <= @date2 and @date2 < rsi2.end_time)
 );
 GO
 
+
 -----------------------------------------------------------------------------
 -- Core Server-level functionalities
 -----------------------------------------------------------------------------
-
 -- The list of currently executing queries that are probably not in Query Store.
 CREATE  VIEW qpi.queries
 AS
@@ -492,10 +492,10 @@ AS BEGIN
 END
 GO
 
+
 -----------------------------------------------------------------------------
 -- Core Plan forcing functionalities
 -----------------------------------------------------------------------------
-
 CREATE
 PROCEDURE [qpi].[force] @query_id int, @plan_id int = null, @hints nvarchar(4000) = null
 AS BEGIN

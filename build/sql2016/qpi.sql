@@ -354,6 +354,7 @@ and (@date2 is null or rsi2.start_time <= @date2 and @date2 < rsi2.end_time)
 );
 GO
 
+
 -----------------------------------------------------------------------------
 -- Core Server-level functionalities
 -----------------------------------------------------------------------------
@@ -387,7 +388,6 @@ FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
 WHERE text NOT LIKE '%qpi.queries%'
 GO
-
 CREATE  VIEW qpi.query_stats
 AS
 select q.text, q.params, q.query_id, q.session_id, q.request_id, q.memory_mb, q.start_time,
@@ -422,8 +422,6 @@ left join sys.dm_exec_query_memory_grants mg
 on q.session_id = mg.session_id
 and q.request_id = mg.request_id
 GO
-
-
 CREATE
 PROCEDURE qpi.clear_db_queries
 AS BEGIN

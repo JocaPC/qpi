@@ -485,7 +485,8 @@ and rsi1.start_time <= @date1 and @date1 < rsi1.end_time
 and (@date2 is null or rsi2.start_time <= @date2 and @date2 < rsi2.end_time)
 );
 GO
-
+#endif
+#ifndef AzDw
 -----------------------------------------------------------------------------
 -- Core Server-level functionalities
 -----------------------------------------------------------------------------
@@ -519,7 +520,40 @@ FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
 WHERE text NOT LIKE '%qpi.queries%'
 GO
-
+#else
+CREATE_OR_ALTER VIEW qpi.queries
+AS
+SELECT  
+        text = command,
+        params = NULL,
+		execution_type_desc = status COLLATE Latin1_General_CS_AS,
+		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
+		elapsed_time_s = total_elapsed_time /1000.0, 
+		cpu_time_s = NULL, -- N/A in DW		 
+		logical_io_reads = NULL,
+		logical_io_writes = NULL,
+		physical_io_reads = NULL, 
+		num_physical_io_reads = NULL, 
+		clr_time = NULL,
+		dop = NULL,
+		row_count = NULL, 
+		memory_mb = NULL, 
+		log_bytes = NULL,
+		tempdb_space = NULL,
+		query_text_id = NULL, query_id = NULL, plan_id = NULL,
+		database_id,
+        connection_id = client_correlation_id,
+        session_id, request_id, command,
+		interval_mi = null,
+		start_time,
+		end_time = null,
+		sql_handle = NULL        
+FROM    sys.dm_pdw_exec_requests
+WHERE command NOT LIKE '%qpi.queries%'
+  AND status NOT IN ('Completed', 'Failed')
+GO
+#endif
+#ifndef AzDw
 CREATE_OR_ALTER VIEW qpi.query_stats
 AS
 select q.text, q.params, q.query_id, q.session_id, q.request_id, q.memory_mb, q.start_time,
@@ -554,8 +588,6 @@ left join sys.dm_exec_query_memory_grants mg
 on q.session_id = mg.session_id
 and q.request_id = mg.request_id
 GO
-#endif
-#ifndef AzDw
 CREATE_OR_ALTER
 PROCEDURE qpi.clear_db_queries
 AS BEGIN

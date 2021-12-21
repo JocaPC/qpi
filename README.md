@@ -71,6 +71,7 @@ You can download the source and run it in your database. Choose the version base
 - [Azure SQL Database](https://raw.githubusercontent.com/JocaPC/qpi/master/build/azure-db/qpi.sql)
 - [SQL Server 2017](https://raw.githubusercontent.com/JocaPC/qpi/master/build/sql2017/qpi.sql) and higher.
 - [SQL Server 2016](https://raw.githubusercontent.com/JocaPC/qpi/master/build/sql2016/qpi.sql)
+- [Synapse serverless SQL pool](https://raw.githubusercontent.com/JocaPC/qpi/master/build/synapse-sql/qpi.sql) - limited functionalities.
  
  All functions, views, and tables are placed in `qpi` schema in your database.
 

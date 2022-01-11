@@ -262,7 +262,7 @@ having count(*) > 1
 union all
 
 -- Partitioned external table
-select	name = 'REMOVE PARTITIONED TABLE',
+select	name = 'REPLACE TABLE WITH PARTITIONED VIEW',
         score = 1.0,
 		schema_name = schema_name(e.schema_id),
 		object = e.name,

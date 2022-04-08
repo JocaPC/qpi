@@ -136,7 +136,7 @@ from sys.views as v join sys.columns as c on v.object_id = c.object_id
 join sql_definition m on v.object_id = m.object_id
 join sys.types t on c.user_type_id = t.user_type_id
 where (	m.format_type IN ('PARQUET', 'DELTA', 'COSMOSDB', 'MIXED') )
-AND	( (t.name iN ('nchar', 'nvarhar')) OR (t.name iN ('nchar', 'nvarhar') AND c.collation_name NOT LIKE '%UTF8') )
+AND	( (t.name iN ('nchar', 'nvarchar')) OR (t.name iN ('nchar', 'nvarchar') AND c.collation_name NOT LIKE '%UTF8') )
 group by v.schema_id, v.name, t.name, m.format_type, c.name
 union all
 -- Tables on UTF-8 files with NVARCHAR/NCHAR columns or CHAR/VARCHAR without UTF8 collation:
@@ -154,7 +154,7 @@ from sys.external_tables as e join sys.columns as c on e.object_id = c.object_id
 join sys.external_file_formats f on e.file_format_id = f.file_format_id
 join sys.types t on c.user_type_id = t.user_type_id
 where ( (f.format_type IN ('PARQUET', 'DELTA')) OR f.encoding = 'UTF8' )
-AND	( (t.name iN ('nchar', 'nvarhar')) OR (t.name iN ('nchar', 'nvarhar') AND c.collation_name NOT LIKE '%UTF8'))
+AND	( (t.name iN ('nchar', 'nvarchar')) OR (t.name iN ('nchar', 'nvarchar') AND c.collation_name NOT LIKE '%UTF8'))
 group by e.schema_id, f.format_type, e.name, f.encoding , t.name, c.name
 union all
 -- Tables on UTF-16 files with VARCHAR/CHAR columns:
@@ -171,7 +171,7 @@ from sys.external_tables as e join sys.columns as c on e.object_id = c.object_id
 join sys.external_file_formats f on e.file_format_id = f.file_format_id
 join sys.types t on c.user_type_id = t.user_type_id
 where (f.encoding = 'UTF16' )
-AND	(t.name iN ('nchar', 'nvarhar'))
+AND	(t.name iN ('nchar', 'nvarchar'))
 group by e.schema_id, f.format_type, e.name, f.encoding , t.name
 union all
 select	name = 'OPTIMIZE STRING FILTER',

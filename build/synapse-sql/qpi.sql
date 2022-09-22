@@ -378,3 +378,60 @@ select 'Query:', "SELECT * FROM OPENROWSET( 'CosmosDB',
 union ALL
 select 'WITH clause:', @with_clause;
 END
+GO
+
+-- Prerequisite!
+-- Create [Diagnostics EXTERNAL DATA SOURCE that references the container where the diagnostic logs are stored, for example:
+-- CREATE EXTERNAL DATA SOURCE [Diagnostics] WITH ( LOCATION = 'https://jocapc.dfs.core.windows.net/insights-logs-builtinsqlreqsended/' )
+
+CREATE OR ALTER VIEW qpi.diagnostics
+AS SELECT
+    subscriptionId = r.filepath(1),
+    resourceGroup = r.filepath(2),
+    workspace = r.filepath(3),
+    year = CAST(r.filepath(4) AS TINYINT),
+    month = CAST(r.filepath(5) AS TINYINT),
+    day = CAST(r.filepath(6) AS TINYINT),
+    hour = CAST(r.filepath(7) AS TINYINT),
+    minute = CAST(r.filepath(8) AS TINYINT),
+    details.queryType,
+    durationS = CAST(details.durationMs / 1000. AS NUMERIC(8,1)),
+    dataProcessedMB = CAST(details.dataProcessedBytes /1024./1024 AS NUMERIC(16,1)),
+    details.startTime,
+    details.endTime,
+    details.distributedStatementId,
+    details.queryHash,
+    details.resultType,
+    details.operationName,
+    details.queryText,
+    details.endpoint,
+    details.resourceGroup,
+    details.resourceId,
+    details.error
+FROM
+    OPENROWSET(
+        BULK 'resourceId=/SUBSCRIPTIONS/*/RESOURCEGROUPS/*/PROVIDERS/MICROSOFT.SYNAPSE/WORKSPACES/*/y=*/m=*/d=*/h=*/m=*/*.json',
+        DATA_SOURCE = 'Diagnostics',
+        FORMAT = 'CSV',
+        FIELDQUOTE = '0x0b',
+        FIELDTERMINATOR ='0x0b'
+    )
+    WITH (
+        jsonContent varchar(MAX)
+    ) AS r CROSS APPLY OPENJSON(jsonContent)
+                        WITH (  endpoint varchar(128) '$.LogicalServerName',
+                                resourceGroup varchar(128) '$.ResourceGroup',
+                                startTime datetime2 '$.properties.startTime',
+                                endTime datetime2 '$.properties.endTime',
+                                dataProcessedBytes bigint '$.properties.dataProcessedBytes',
+                                durationMs bigint,
+                                loginName varchar(128) '$.identity.loginName',
+                                distributedStatementId varchar(128) '$.properties.distributedStatementId',
+                                resultType varchar(128) ,
+                                error varchar(128) '$.properties.error',
+                                queryType varchar(128) '$.properties.command',
+                                queryText varchar(max) '$.properties.queryText',
+                                queryHash varchar(128) '$.properties.queryHash',
+                                operationName varchar(128),
+                                resourceId varchar(1024) '$.resourceId'
+                                ) as details

@@ -405,7 +405,7 @@ AS SELECT
     details.operationName,
     details.queryText,
     details.endpoint,
-    details.resourceGroup,
+    details.resourceGroup as resourceGroupInFile,
     details.resourceId,
     details.error
 FROM

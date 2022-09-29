@@ -389,7 +389,7 @@ AS SELECT
     subscriptionId = r.filepath(1),
     resourceGroup = r.filepath(2),
     workspace = r.filepath(3),
-    year = CAST(r.filepath(4) AS TINYINT),
+    year = CAST(r.filepath(4) AS SMALLINT),
     month = CAST(r.filepath(5) AS TINYINT),
     day = CAST(r.filepath(6) AS TINYINT),
     hour = CAST(r.filepath(7) AS TINYINT),
@@ -405,7 +405,7 @@ AS SELECT
     details.operationName,
     details.queryText,
     details.endpoint,
-    details.resourceGroup,
+    details.resourceGroup as resourceGroupInFile,
     details.resourceId,
     details.error
 FROM

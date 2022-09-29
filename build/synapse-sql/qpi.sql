@@ -380,11 +380,17 @@ select 'WITH clause:', @with_clause;
 END
 GO
 
--- Prerequisite!
--- Create [Diagnostics EXTERNAL DATA SOURCE that references the container where the diagnostic logs are stored, for example:
--- CREATE EXTERNAL DATA SOURCE [Diagnostics] WITH ( LOCATION = 'https://jocapc.dfs.core.windows.net/insights-logs-builtinsqlreqsended/' )
+CREATE OR ALTER   PROCEDURE [qpi].[create_diagnostics] @path varchar(1024)
+AS BEGIN
 
-CREATE OR ALTER VIEW qpi.diagnostics
+	DECLARE @tsql VARCHAR(MAX);
+
+	SET @tsql = CONCAT("DROP EXTERNAL DATA SOURCE [Diagnostics];
+CREATE EXTERNAL DATA SOURCE [Diagnostics] WITH ( LOCATION = '", @path, "' );");
+
+	EXEC(@tsql);
+
+	SET @tsql = "CREATE OR ALTER VIEW qpi.diagnostics
 AS SELECT
     subscriptionId = r.filepath(1),
     resourceGroup = r.filepath(2),
@@ -397,15 +403,14 @@ AS SELECT
     details.queryType,
     durationS = CAST(details.durationMs / 1000. AS NUMERIC(8,1)),
     dataProcessedMB = CAST(details.dataProcessedBytes /1024./1024 AS NUMERIC(16,1)),
-    details.startTime,
-    details.endTime,
     details.distributedStatementId,
-    details.queryHash,
-    details.resultType,
-    details.operationName,
     details.queryText,
+	details.startTime,
+    details.endTime,
+    details.resultType,
+	details.queryHash,
+    details.operationName,
     details.endpoint,
-    details.resourceGroup as resourceGroupInFile,
     details.resourceId,
     details.error
 FROM
@@ -428,10 +433,14 @@ FROM
                                 loginName varchar(128) '$.identity.loginName',
                                 distributedStatementId varchar(128) '$.properties.distributedStatementId',
                                 resultType varchar(128) ,
-                                error varchar(128) '$.properties.error',
-                                queryType varchar(128) '$.properties.command',
                                 queryText varchar(max) '$.properties.queryText',
                                 queryHash varchar(128) '$.properties.queryHash',
                                 operationName varchar(128),
-                                resourceId varchar(1024) '$.resourceId'
-                                ) as details
+				error varchar(128) '$.properties.error',
+                                queryType varchar(128) '$.properties.command',
+				resourceId varchar(1024) '$.resourceId'
+                             ) as details";
+
+		EXEC(@tsql);
+END
+GO

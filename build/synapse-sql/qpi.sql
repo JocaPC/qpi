@@ -14,7 +14,7 @@ CREATE OR ALTER  VIEW qpi.queries
 AS
 SELECT
 		--text =   IIF(LEFT(text,1) = '(', TRIM(')' FROM SUBSTRING( text, (PATINDEX( '%)[^),]%', text))+1, LEN(text))), text) ,
-		text = substring(TRIM(text), statement_start_offset/2, statement_end_offset/2 - statement_start_offset/2 + 2) 
+		text = substring(TRIM(text), statement_start_offset/2, statement_end_offset/2 - statement_start_offset/2 + 2), 
 		params =  IIF(LEFT(text,1) = '(', SUBSTRING( text, 2, (PATINDEX( '%)[^),]%', text+')'))-2), '') ,
 		execution_type_desc = status COLLATE Latin1_General_CS_AS,
 		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,

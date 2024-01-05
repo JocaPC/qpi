@@ -43,12 +43,12 @@ CREATE OR ALTER  VIEW qpi.query_history
 AS
 SELECT  query_text_id = query_hash,
         request_id = distributed_statement_id,
-        elapsed_time_s = total_elapsed_time_ms /1000.,
+        elapsed_time_s = datediff(second, start_time, end_time),
         query_text = command,
-        data_processed_mb = NULL,
-        start_time, end_time,
-        transaction_id = NULL,
         status,
+        start_time, end_time,
+        data_processed_mb = NULL,
+        transaction_id = NULL,
         error = NULL, error_code = NULL
 FROM [queryinsights].[exec_requests_history]
 GO

@@ -52,3 +52,33 @@ SELECT  query_text_id = query_hash,
         error = NULL, error_code = NULL
 FROM [queryinsights].[exec_requests_history]
 GO
+CREATE OR ALTER VIEW qpi.query_stats AS
+SELECT
+	text = MAX(command),
+	execution_type_desc = status,
+	duration_s = ROUND(AVG(total_elapsed_time_ms)/1000,1),
+	duration_min_s = ROUND(MIN(total_elapsed_time_ms)/1000,1),
+	duration_max_s = ROUND(AVG(total_elapsed_time_ms)/1000,1),
+	duration_dev_s = ROUND(AVG(total_elapsed_time_ms)/1000,1),
+	count_execution = COUNT(*),
+	row_count = AVG(row_count),
+	start_time = MIN(start_time),
+	end_time = MAX(end_time),
+	interval_mi = MAX(datediff(mi, start_time, end_time)),
+	query_text_id = query_hash,
+	query_hash = query_hash,
+	params = null,
+	query_id = null,
+	session_id = max(session_id),
+	request_id = max(distributed_statement_id)
+FROM queryinsights.exec_requests_history
+GROUP BY query_hash, status
+GO
+CREATE OR ALTER FUNCTION qpi.label (@sql_text varchar(max))
+RETURNS TABLE
+AS RETURN ( SELECT label = SUBSTRING(@sql_text,
+						PATINDEX('%/*%',@sql_text)+2, 
+							IIF((PATINDEX('%*/%',@sql_text)-PATINDEX('%/*%',@sql_text)-2)>0,
+								(PATINDEX('%*/%',@sql_text)-PATINDEX('%/*%',@sql_text)-2), 0))
+								)
+GO

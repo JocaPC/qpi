@@ -1,3 +1,4 @@
+
 SET QUOTED_IDENTIFIER OFF; -- Because I use "" as a string literal
 GO
 
@@ -56,10 +57,10 @@ CREATE OR ALTER VIEW qpi.query_stats AS
 SELECT
 	text = MAX(command),
 	execution_type_desc = status,
-	duration_s = ROUND(AVG(total_elapsed_time_ms)/1000,1),
-	duration_min_s = ROUND(MIN(total_elapsed_time_ms)/1000,1),
-	duration_max_s = ROUND(MAX(total_elapsed_time_ms)/1000,1),
-	duration_dev_s = ROUND(STDEV(total_elapsed_time_ms)/1000,1),
+	duration_s = ROUND(AVG(total_elapsed_time_ms)/1000.,1),
+	duration_min_s = ROUND(MIN(total_elapsed_time_ms)/1000.,1),
+	duration_max_s = ROUND(MAX(total_elapsed_time_ms)/1000.,1),
+	duration_dev_s = ROUND(STDEV(total_elapsed_time_ms)/1000.,1),
 	count_execution = COUNT(*),
 	row_count = AVG(row_count),
 	start_time = MIN(start_time),
@@ -69,9 +70,10 @@ SELECT
 	query_hash = query_hash,
 	params = null,
 	query_id = null,
-	session_id = max(session_id),
-	request_id = max(distributed_statement_id)
+	session_id = string_agg(cast(session_id as varchar(max)),','),
+	request_id = string_agg(cast(distributed_statement_id as varchar(max)),',')
 FROM queryinsights.exec_requests_history
+where total_elapsed_time_ms > 0
 GROUP BY query_hash, status
 GO
 CREATE OR ALTER FUNCTION qpi.label (@sql_text varchar(max))
@@ -83,7 +85,30 @@ AS RETURN ( SELECT label = SUBSTRING(@sql_text,
 								)
 GO
 
-CREATE OR ALTER VIEW qpi.stats AS
+CREATE OR ALTER VIEW qpi.table_stats AS
+SELECT
+	s.name,
+	table_name = OBJECT_NAME(s.object_id), 
+	sc.columns,
+	stats_method = s.stats_generation_method_desc,
+	auto_created,
+	auto_drop,
+	user_created,
+	is_incremental,
+	filter = IIF(has_filter=1, filter_definition, 'N/A')
+FROM sys.stats s
+	JOIN (SELECT	sc.stats_id, sc.object_id,
+					columns = STRING_AGG(cast(c.name as varchar(max)), ',')
+			FROM sys.stats_columns sc, sys.columns c
+			WHERE sc.object_id = c.object_id
+			AND sc.column_id = c.column_id
+			AND OBJECTPROPERTY(c.object_id, 'IsMSShipped') = 0 
+			GROUP BY sc.stats_id, sc.object_id
+			) sc ON s.stats_id = sc.stats_id AND s.object_id = sc.object_id
+WHERE OBJECTPROPERTY(s.object_id, 'IsMSShipped') = 0
+GO
+
+CREATE OR ALTER VIEW qpi.table_stat_columns AS
 SELECT	name = s.name,
 	table_name = OBJECT_NAME(s.object_id), 
 	column_name = c.name, 
@@ -98,8 +123,10 @@ SELECT	name = s.name,
 	user_created,
 	is_incremental,
 	filter = IIF(has_filter=1, filter_definition, 'N/A')
-FROM sys.stats s,sys.stats_columns sc, sys.columns c, sys.types t
+FROM sys.stats s,sys.stats_columns sc, sys.columns c, sys.types t, sys.objects o
 WHERE s.object_id = sc.object_id AND s.stats_id = sc.stats_id
 AND sc.column_id = c.column_id
 AND s.object_id = c.object_id
+AND o.object_id = c.object_id
 AND c.system_type_id = t.system_type_id
+AND OBJECTPROPERTY(s.object_id, 'IsMSShipped') = 0

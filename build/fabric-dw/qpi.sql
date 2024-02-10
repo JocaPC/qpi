@@ -76,13 +76,7 @@ FROM queryinsights.exec_requests_history
 where total_elapsed_time_ms > 0
 GROUP BY query_hash, status
 GO
-CREATE OR ALTER FUNCTION qpi.label (@sql_text varchar(max))
-RETURNS TABLE
-AS RETURN ( SELECT label = SUBSTRING(@sql_text,
-						PATINDEX('%/*%',@sql_text)+2, 
-							IIF((PATINDEX('%*/%',@sql_text)-PATINDEX('%/*%',@sql_text)-2)>0,
-								(PATINDEX('%*/%',@sql_text)-PATINDEX('%/*%',@sql_text)-2), 0))
-								)
+
 GO
 
 CREATE OR ALTER VIEW qpi.table_stats AS
@@ -97,6 +91,24 @@ SELECT
 	is_incremental,
 	filter = IIF(has_filter=1, filter_definition, 'N/A')
 FROM sys.stats s
+GO
+
+CREATE OR ALTER FUNCTION qpi.label(@sql VARCHAR(max))
+RETURNS TABLE
+AS RETURN (
+    SELECT
+        CASE
+            WHEN CHARINDEX('(LABEL=', @sql) > 0
+                THEN SUBSTRING(
+                    @sql,
+                    CHARINDEX('(LABEL=', @sql) + 8, -- Skip the length of '(LABEL='
+                    CHARINDEX(''')', @sql, CHARINDEX('(LABEL=', @sql) + 8) - CHARINDEX('(LABEL=', @sql) - 8
+                )
+            ELSE 'N/A'
+        END AS label
+);
+GO
+
 	JOIN (SELECT	sc.stats_id, sc.object_id,
 					columns = STRING_AGG(cast(c.name as varchar(max)), ',')
 			FROM sys.stats_columns sc, sys.columns c

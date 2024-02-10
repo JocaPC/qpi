@@ -6,6 +6,23 @@ IF SCHEMA_ID('qpi') IS NULL
 	EXEC ('CREATE SCHEMA qpi');
 GO
 
+CREATE OR ALTER FUNCTION qpi.label(@sql VARCHAR(max))
+RETURNS TABLE
+AS RETURN (
+    SELECT
+        CASE
+            WHEN CHARINDEX('(LABEL=', @sql) > 0
+                THEN SUBSTRING(
+                    @sql,
+                    CHARINDEX('(LABEL=', @sql) + 8, -- Skip the length of '(LABEL='
+                    CHARINDEX(''')', @sql, CHARINDEX('(LABEL=', @sql) + 8) - CHARINDEX('(LABEL=', @sql) - 8
+                )
+            ELSE 'N/A'
+        END AS label
+);
+GO
+
+	
 CREATE OR ALTER  VIEW qpi.queries
 AS
 
@@ -77,8 +94,6 @@ where total_elapsed_time_ms > 0
 GROUP BY query_hash, status
 GO
 
-GO
-
 CREATE OR ALTER VIEW qpi.table_stats AS
 SELECT
 	s.name,
@@ -91,24 +106,6 @@ SELECT
 	is_incremental,
 	filter = IIF(has_filter=1, filter_definition, 'N/A')
 FROM sys.stats s
-GO
-
-CREATE OR ALTER FUNCTION qpi.label(@sql VARCHAR(max))
-RETURNS TABLE
-AS RETURN (
-    SELECT
-        CASE
-            WHEN CHARINDEX('(LABEL=', @sql) > 0
-                THEN SUBSTRING(
-                    @sql,
-                    CHARINDEX('(LABEL=', @sql) + 8, -- Skip the length of '(LABEL='
-                    CHARINDEX(''')', @sql, CHARINDEX('(LABEL=', @sql) + 8) - CHARINDEX('(LABEL=', @sql) - 8
-                )
-            ELSE 'N/A'
-        END AS label
-);
-GO
-
 	JOIN (SELECT	sc.stats_id, sc.object_id,
 					columns = STRING_AGG(cast(c.name as varchar(max)), ',')
 			FROM sys.stats_columns sc, sys.columns c

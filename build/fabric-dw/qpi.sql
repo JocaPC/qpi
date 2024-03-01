@@ -48,9 +48,13 @@ SELECT 	text = substring(text, (statement_start_offset/2)+1,
 		tempdb_space = NULL,
 		query_text_id = NULL, query_id = NULL, plan_id = NULL,
 		database_id, connection_id, session_id, request_id = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64))), command,
-		interval_mi = null,
 		start_time,
 		end_time = null,
+		runtime_stats_interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
+									DATEPART(mm, (start_time)) * 10000 + 
+									DATEPART(dd, (start_time)) * 100 + 
+									DATEPART(hh, (start_time)),
+		interval_mi = 60,
 		sql_handle
 FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
@@ -67,7 +71,12 @@ SELECT  query_text_id = query_hash,
         start_time, end_time,
         data_processed_mb = NULL,
         transaction_id = NULL,
-        error = NULL, error_code = NULL
+        error = NULL, error_code = NULL,
+		runtime_stats_interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
+									DATEPART(mm, (start_time)) * 10000 + 
+									DATEPART(dd, (start_time)) * 100 + 
+									DATEPART(hh, (start_time)),
+		interval_mi = 60
 FROM [queryinsights].[exec_requests_history]
 GO
 CREATE OR ALTER VIEW qpi.query_stats AS
@@ -85,7 +94,11 @@ SELECT
 	rows_per_sec_max =	CAST(ROUND(MAX(row_count/(total_elapsed_time_ms/1000.)),1) AS DECIMAL(6,1)),
 	start_time = MIN(start_time),
 	end_time = MAX(end_time),
-	interval_mi = MAX(datediff(mi, start_time, end_time)),
+	interval_mi = 60, --MAX(datediff(mi, start_time, end_time)),
+	runtime_stats_interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
+								DATEPART(mm, (start_time)) * 10000 + 
+								DATEPART(dd, (start_time)) * 100 + 
+								DATEPART(hh, (start_time)),
 	query_text_id = query_hash,
 	query_hash = query_hash,
 	params = null,
@@ -94,7 +107,10 @@ SELECT
 	request_id = string_agg(cast(distributed_statement_id as varchar(max)),',')
 FROM queryinsights.exec_requests_history
 where total_elapsed_time_ms > 0
-GROUP BY query_hash, status
+GROUP BY query_hash, status,	DATEPART(yyyy, start_time),--  * 1000000 +  
+								DATEPART(mm, start_time),-- * 10000 + 
+								DATEPART(dd, start_time),-- * 100 + 
+								DATEPART(hh, start_time)
 GO
 
 CREATE OR ALTER VIEW qpi.table_stats AS

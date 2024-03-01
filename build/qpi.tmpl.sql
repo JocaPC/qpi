@@ -1821,3 +1821,52 @@ GO
 SET QUOTED_IDENTIFIER ON;
 GO
 #endif
+
+-----------------------------------------------------------------------------
+--			Statistics
+-----------------------------------------------------------------------------
+
+CREATE_OR_ALTER VIEW qpi.table_stats AS
+SELECT
+	s.name,
+	table_name = OBJECT_NAME(s.object_id), 
+	sc.columns,
+	stats_method = s.stats_generation_method_desc,
+	auto_created,
+	auto_drop,
+	user_created,
+	is_incremental,
+	filter = IIF(has_filter=1, filter_definition, 'N/A')
+FROM sys.stats s
+	JOIN (SELECT	sc.stats_id, sc.object_id,
+					columns = STRING_AGG(cast(c.name as varchar(max)), ',')
+			FROM sys.stats_columns sc, sys.columns c
+			WHERE sc.object_id = c.object_id
+			AND sc.column_id = c.column_id
+			AND OBJECTPROPERTY(c.object_id, 'IsMSShipped') = 0 
+			GROUP BY sc.stats_id, sc.object_id
+			) sc ON s.stats_id = sc.stats_id AND s.object_id = sc.object_id
+WHERE OBJECTPROPERTY(s.object_id, 'IsMSShipped') = 0
+GO
+
+CREATE_OR_ALTER VIEW qpi.table_stat_columns AS
+SELECT	name = s.name,
+	table_name = OBJECT_NAME(s.object_id), 
+	column_name = c.name, 
+	type = CASE 
+		WHEN t.name IN ('decimal', 'numeric') THEN CONCAT(t.name, '(', c.precision, ',', c.scale, ')')
+		WHEN t.name IN ('char', 'varchar', 'nchar', 'nvarchar', 'binary', 'varbinary', 'datetime2', 'time', 'datetimeoffset') THEN CONCAT(t.name, '(', IIF(c.max_length <> -1, CAST(c.max_length AS VARCHAR(100)), 'MAX'), ')')
+		ELSE t.name
+	END,
+	stats_method = s.stats_generation_method_desc,
+	auto_created,
+	auto_drop,
+	user_created,
+	is_incremental,
+	filter = IIF(has_filter=1, filter_definition, 'N/A')
+FROM sys.stats s,sys.stats_columns sc, sys.columns c, sys.types t, sys.objects o
+WHERE s.object_id = sc.object_id AND s.stats_id = sc.stats_id
+AND sc.column_id = c.column_id
+AND s.object_id = c.object_id
+AND o.object_id = c.object_id
+AND c.system_type_id = t.system_type_id

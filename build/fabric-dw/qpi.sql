@@ -1,10 +1,17 @@
-
+--------------------------------------------------------------------------------
+--	Fabric DW - Query Performance Insights
+--	Author: Jovan Popovic
+--------------------------------------------------------------------------------
 SET QUOTED_IDENTIFIER OFF; -- Because I use "" as a string literal
 GO
 
 IF SCHEMA_ID('qpi') IS NULL
 	EXEC ('CREATE SCHEMA qpi');
 GO
+
+-----------------------------------------------------------------------------
+-- Generic utilities
+-----------------------------------------------------------------------------
 
 CREATE OR ALTER FUNCTION qpi.label(@sql VARCHAR(max))
 RETURNS TABLE
@@ -22,11 +29,16 @@ AS RETURN (
 );
 GO
 
+-----------------------------------------------------------------------------
+-- Core Server-level functionalities
+-----------------------------------------------------------------------------
+-- The list of currently executing queries that are probably not in Query Store.
+
 	
 CREATE OR ALTER  VIEW qpi.queries
 AS
-
-SELECT 	text = substring(text, (statement_start_offset/2)+1,   
+SELECT
+	text = substring(text, (statement_start_offset/2)+1,   
 								((CASE statement_end_offset  
 										WHEN -1 THEN DATALENGTH(text) 
 										ELSE statement_end_offset END 
@@ -113,6 +125,10 @@ GROUP BY query_hash, status,	DATEPART(yyyy, start_time),--  * 1000000 +
 								DATEPART(hh, start_time)
 GO
 
+-----------------------------------------------------------------------------
+-- Table statistics
+-----------------------------------------------------------------------------
+
 CREATE OR ALTER VIEW qpi.table_stats AS
 SELECT
 	s.name,
@@ -158,3 +174,5 @@ AND s.object_id = c.object_id
 AND o.object_id = c.object_id
 AND c.system_type_id = t.system_type_id
 AND OBJECTPROPERTY(s.object_id, 'IsMSShipped') = 0
+
+GO

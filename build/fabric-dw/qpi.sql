@@ -81,17 +81,51 @@ SELECT  query_text_id = query_hash,
         text = REPLACE(command, '''''',''''),
         status,
         start_time, end_time,
-        data_processed_mb = NULL,
-        transaction_id = NULL,
-        error = NULL, error_code = NULL,
-		runtime_stats_interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
+        runtime_stats_interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
 									DATEPART(mm, (start_time)) * 10000 + 
 									DATEPART(dd, (start_time)) * 100 + 
 									DATEPART(hh, (start_time)),
-		interval_mi = 60
+		interval_mi = 60,
+		row_count,
+		data_processed_mb = NULL,
+        transaction_id = NULL,
+        error = NULL, error_code = NULL
 FROM [queryinsights].[exec_requests_history]
 GO
 CREATE OR ALTER VIEW qpi.query_stats AS
+SELECT
+	runtime_stats_interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
+								DATEPART(mm, (start_time)) * 10000 + 
+								DATEPART(dd, (start_time)) * 100 + 
+								DATEPART(hh, (start_time)),
+	text = MAX(REPLACE(command, '''''','''')),
+	execution_type_desc = status,
+	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
+	duration_min_s = CAST(ROUND(MIN(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
+	duration_max_s = CAST(ROUND(MAX(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
+	duration_dev_s = CAST(ROUND(STDEV(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
+	count_execution = COUNT(*),
+	row_count = AVG(row_count),
+	rows_per_sec =		CAST(ROUND(AVG(row_count/(total_elapsed_time_ms/1000.)),1) AS DECIMAL(6,1)),
+	rows_per_sec_min =	CAST(ROUND(MIN(row_count/(total_elapsed_time_ms/1000.)),1) AS DECIMAL(6,1)),
+	rows_per_sec_max =	CAST(ROUND(MAX(row_count/(total_elapsed_time_ms/1000.)),1) AS DECIMAL(6,1)),
+	start_time = MIN(start_time),
+	end_time = MAX(end_time),
+	interval_mi = 60, --MAX(datediff(mi, start_time, end_time)),
+	query_text_id = query_hash,
+	query_hash = query_hash,
+	params = null,
+	query_id = null,
+	session_id = string_agg(cast(session_id as varchar(max)),','),
+	request_id = string_agg(cast(distributed_statement_id as varchar(max)),',')
+FROM queryinsights.exec_requests_history
+where total_elapsed_time_ms > 0
+GROUP BY query_hash, status,	DATEPART(yyyy, start_time),--  * 1000000 +  
+								DATEPART(mm, start_time),-- * 10000 + 
+								DATEPART(dd, start_time),-- * 100 + 
+								DATEPART(hh, start_time)
+GO
+CREATE OR ALTER VIEW qpi.query_stats_all AS
 SELECT
 	text = MAX(REPLACE(command, '''''','''')),
 	execution_type_desc = status,
@@ -107,10 +141,6 @@ SELECT
 	start_time = MIN(start_time),
 	end_time = MAX(end_time),
 	interval_mi = 60, --MAX(datediff(mi, start_time, end_time)),
-	runtime_stats_interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
-								DATEPART(mm, (start_time)) * 10000 + 
-								DATEPART(dd, (start_time)) * 100 + 
-								DATEPART(hh, (start_time)),
 	query_text_id = query_hash,
 	query_hash = query_hash,
 	params = null,
@@ -119,10 +149,7 @@ SELECT
 	request_id = string_agg(cast(distributed_statement_id as varchar(max)),',')
 FROM queryinsights.exec_requests_history
 where total_elapsed_time_ms > 0
-GROUP BY query_hash, status,	DATEPART(yyyy, start_time),--  * 1000000 +  
-								DATEPART(mm, start_time),-- * 10000 + 
-								DATEPART(dd, start_time),-- * 100 + 
-								DATEPART(hh, start_time)
+GROUP BY query_hash, status
 GO
 
 -----------------------------------------------------------------------------

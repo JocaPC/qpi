@@ -18,17 +18,17 @@ RETURNS TABLE
 AS RETURN (
     SELECT
         CASE
-            WHEN CHARINDEX('(LABEL=', @sql) > 0
+            WHEN CHARINDEX('(LABEL=', @sql COLLATE Latin1_General_100_CI_AS_WS_SC_UTF8) > 0
                 THEN SUBSTRING(
                     @sql,
-                    CHARINDEX('(LABEL=', @sql) + 8, -- Skip the length of '(LABEL='
-                    CHARINDEX(''')', @sql, CHARINDEX('(LABEL=', @sql) + 8) - CHARINDEX('(LABEL=', @sql) - 8
+                    CHARINDEX('(LABEL=', @sql  COLLATE Latin1_General_100_CI_AS_WS_SC_UTF8 ) + 8, -- Skip the length of '(LABEL='
+                    CHARINDEX(''')', @sql, CHARINDEX('(LABEL=', @sql COLLATE Latin1_General_100_CI_AS_WS_SC_UTF8) + 8)
+											- CHARINDEX('(LABEL=', @sql  COLLATE Latin1_General_100_CI_AS_WS_SC_UTF8 ) - 8
                 )
             ELSE 'N/A'
         END AS label
 );
 GO
-
 -----------------------------------------------------------------------------
 -- Core Server-level functionalities
 -----------------------------------------------------------------------------

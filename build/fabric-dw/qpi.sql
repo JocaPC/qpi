@@ -92,6 +92,7 @@ SELECT  query_text_id = query_hash,
         error = NULL, error_code = NULL
 FROM [queryinsights].[exec_requests_history]
 GO
+
 CREATE OR ALTER VIEW qpi.query_stats AS
 SELECT
 	runtime_stats_interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
@@ -119,12 +120,14 @@ SELECT
 	session_id = string_agg(cast(session_id as varchar(max)),','),
 	request_id = string_agg(cast(distributed_statement_id as varchar(max)),',')
 FROM queryinsights.exec_requests_history
-where total_elapsed_time_ms > 0
-GROUP BY query_hash, status,	DATEPART(yyyy, start_time),--  * 1000000 +  
-								DATEPART(mm, start_time),-- * 10000 + 
-								DATEPART(dd, start_time),-- * 100 + 
-								DATEPART(hh, start_time)
+WHERE total_elapsed_time_ms > 0
+GROUP BY DATEPART(yyyy, start_time)  * 1000000 +  
+	 DATEPART(mm, start_time) * 10000 + 
+	 DATEPART(dd, start_time) * 100 + 
+	 DATEPART(hh, start_time),
+	 query_hash, status
 GO
+
 CREATE OR ALTER VIEW qpi.query_stats_all AS
 SELECT
 	text = MAX(REPLACE(command, '''''','''')),

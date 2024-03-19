@@ -99,7 +99,8 @@ SELECT
 								DATEPART(mm, (start_time)) * 10000 + 
 								DATEPART(dd, (start_time)) * 100 + 
 								DATEPART(hh, (start_time)),
-	text = MAX(REPLACE(command, '''''','''')),
+	text = REPLACE(command, '''''',''''),
+	label = TRIM('''' FROM l.label), 
 	execution_type_desc = status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
 	duration_min_s = CAST(ROUND(MIN(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
@@ -107,30 +108,31 @@ SELECT
 	duration_dev_s = CAST(ROUND(STDEV(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
 	count_execution = COUNT(*),
 	row_count = AVG(row_count),
-	rows_per_sec =		CAST(ROUND(AVG(row_count/(total_elapsed_time_ms/1000.)),1) AS DECIMAL(16,1)),
-	rows_per_sec_min =	CAST(ROUND(MIN(row_count/(total_elapsed_time_ms/1000.)),1) AS DECIMAL(16,1)),
-	rows_per_sec_max =	CAST(ROUND(MAX(row_count/(total_elapsed_time_ms/1000.)),1) AS DECIMAL(16,1)),
+	rows_per_sec =		CAST(ROUND(AVG(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
+	rows_per_sec_min =	CAST(ROUND(MIN(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
+	rows_per_sec_max =	CAST(ROUND(MAX(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
+	rows_per_sec_stdev = CAST(ROUND(STDEV(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
 	start_time = MIN(start_time),
 	end_time = MAX(end_time),
 	interval_mi = 60, --MAX(datediff(mi, start_time, end_time)),
-	query_text_id = query_hash,
-	query_hash = query_hash,
+	query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
+	query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	params = null,
 	query_id = null,
 	session_id = string_agg(cast(session_id as varchar(max)),','),
 	request_id = string_agg(cast(distributed_statement_id as varchar(max)),',')
-FROM queryinsights.exec_requests_history
-WHERE total_elapsed_time_ms > 0
+FROM queryinsights.exec_requests_history OUTER APPLY qpi.label(command) as l
 GROUP BY DATEPART(yyyy, start_time)  * 1000000 +  
 	 DATEPART(mm, start_time) * 10000 + 
 	 DATEPART(dd, start_time) * 100 + 
 	 DATEPART(hh, start_time),
-	 query_hash, status
+	 status, command -- Don't use query_hash in Fabric
 GO
 
 CREATE OR ALTER VIEW qpi.query_stats_all AS
 SELECT
-	text = MAX(REPLACE(command, '''''','''')),
+	text = REPLACE(command, '''''',''''),
+	label = TRIM('''' FROM l.label),
 	execution_type_desc = status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
 	duration_min_s = CAST(ROUND(MIN(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
@@ -138,21 +140,21 @@ SELECT
 	duration_dev_s = CAST(ROUND(STDEV(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
 	count_execution = COUNT(*),
 	row_count = AVG(row_count),
-	rows_per_sec =		CAST(ROUND(AVG(row_count/(total_elapsed_time_ms/1000.)),1) AS DECIMAL(6,1)),
-	rows_per_sec_min =	CAST(ROUND(MIN(row_count/(total_elapsed_time_ms/1000.)),1) AS DECIMAL(6,1)),
-	rows_per_sec_max =	CAST(ROUND(MAX(row_count/(total_elapsed_time_ms/1000.)),1) AS DECIMAL(6,1)),
+	rows_per_sec =		CAST(ROUND(AVG(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
+	rows_per_sec_min =	CAST(ROUND(MIN(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
+	rows_per_sec_max =	CAST(ROUND(MAX(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
+	rows_per_sec_stdev = CAST(ROUND(STDEV(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
 	start_time = MIN(start_time),
 	end_time = MAX(end_time),
 	interval_mi = 60, --MAX(datediff(mi, start_time, end_time)),
-	query_text_id = query_hash,
-	query_hash = query_hash,
+	query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
+	query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	params = null,
 	query_id = null,
 	session_id = string_agg(cast(session_id as varchar(max)),','),
 	request_id = string_agg(cast(distributed_statement_id as varchar(max)),',')
-FROM queryinsights.exec_requests_history
-where total_elapsed_time_ms > 0
-GROUP BY query_hash, status
+FROM queryinsights.exec_requests_history OUTER APPLY qpi.label(command) as l
+GROUP BY status, label, command  -- Don't use query_hash in Fabric
 GO
 
 -----------------------------------------------------------------------------

@@ -25,7 +25,7 @@ AS RETURN (
                     CHARINDEX(''')', @sql, CHARINDEX('(LABEL=', @sql COLLATE Latin1_General_100_CI_AS_WS_SC_UTF8) + 8)
 											- CHARINDEX('(LABEL=', @sql  COLLATE Latin1_General_100_CI_AS_WS_SC_UTF8 ) - 8
                 )
-            ELSE 'N/A'
+            ELSE NULL
         END AS label
 );
 GO
@@ -126,7 +126,7 @@ GROUP BY DATEPART(yyyy, start_time)  * 1000000 +
 	 DATEPART(mm, start_time) * 10000 + 
 	 DATEPART(dd, start_time) * 100 + 
 	 DATEPART(hh, start_time),
-	 status, command -- Don't use query_hash in Fabric
+	 status, label, command -- Don't use query_hash in Fabric
 GO
 
 CREATE OR ALTER VIEW qpi.query_stats_all AS

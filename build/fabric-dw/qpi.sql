@@ -73,7 +73,7 @@ FROM    sys.dm_exec_requests
 WHERE session_id <> @@SPID
 GO
 
-CREATE OR ALTER  VIEW qpi.query_history
+CREATE OR ALTER  VIEW qpi.db_query_history
 AS
 SELECT  query_text_id = query_hash,
         request_id = distributed_statement_id,
@@ -81,24 +81,54 @@ SELECT  query_text_id = query_hash,
         text = REPLACE(command, '''''',''''),
         status,
         start_time, end_time,
-        runtime_stats_interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
-									DATEPART(mm, (start_time)) * 10000 + 
-									DATEPART(dd, (start_time)) * 100 + 
-									DATEPART(hh, (start_time)),
-		interval_mi = 60,
-		row_count,
-		data_processed_mb = NULL,
+        interval_id = 	DATEPART(yyyy, (start_time)) * 1000000 + 
+			DATEPART(mm, (start_time)) * 10000 + 
+			DATEPART(dd, (start_time)) * 100 + 
+			DATEPART(hh, (start_time)),
+	interval_mi = 60,
+	row_count,
+	data_processed_mb = NULL,
         transaction_id = NULL,
         error = NULL, error_code = NULL
 FROM [queryinsights].[exec_requests_history]
 GO
 
-CREATE OR ALTER VIEW qpi.query_stats AS
+CREATE OR ALTER VIEW qpi.db_query_exec_stats AS
 SELECT
-	runtime_stats_interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
-								DATEPART(mm, (start_time)) * 10000 + 
-								DATEPART(dd, (start_time)) * 100 + 
-								DATEPART(hh, (start_time)),
+	interval_id =   DATEPART(yyyy, (start_time)) * 1000000 + 
+			DATEPART(mm, (start_time)) * 10000 + 
+			DATEPART(dd, (start_time)) * 100 + 
+			DATEPART(hh, (start_time)),
+	text = REPLACE(command, '''''',''''),
+	label = TRIM('''' FROM l.label), 
+	execution_type_desc = status,
+	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
+	count_execution = COUNT(*),
+	row_count = AVG(row_count),
+	rows_per_sec =		CAST(ROUND(AVG(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
+	start_time = MIN(start_time),
+	end_time = MAX(end_time),
+	interval_mi = 60,
+	query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
+	query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
+	params = null,
+	query_id = null,
+	session_id = string_agg(cast(session_id as varchar(max)),','),
+	request_id = string_agg(cast(distributed_statement_id as varchar(max)),',')
+FROM queryinsights.exec_requests_history OUTER APPLY qpi.label(command) as l
+GROUP BY DATEPART(yyyy, start_time)  * 1000000 +  
+	 DATEPART(mm, start_time) * 10000 + 
+	 DATEPART(dd, start_time) * 100 + 
+	 DATEPART(hh, start_time),
+	 status, label, command -- Don't use query_hash in Fabric
+GO
+
+CREATE OR ALTER VIEW qpi.db_query_exec_stats_ex AS
+SELECT
+	interval_id = 	DATEPART(yyyy, (start_time)) * 1000000 + 
+			DATEPART(mm, (start_time)) * 10000 + 
+			DATEPART(dd, (start_time)) * 100 + 
+			DATEPART(hh, (start_time)),
 	text = REPLACE(command, '''''',''''),
 	label = TRIM('''' FROM l.label), 
 	execution_type_desc = status,
@@ -128,8 +158,30 @@ GROUP BY DATEPART(yyyy, start_time)  * 1000000 +
 	 DATEPART(hh, start_time),
 	 status, label, command -- Don't use query_hash in Fabric
 GO
+	
+CREATE OR ALTER VIEW qpi.db_query_exec_stats_agg AS
+SELECT
+	text = REPLACE(command, '''''',''''),
+	label = TRIM('''' FROM l.label),
+	execution_type_desc = status,
+	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
+	count_execution = COUNT(*),
+	row_count = AVG(row_count),
+	rows_per_sec =		CAST(ROUND(AVG(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
+	start_time = MIN(start_time),
+	end_time = MAX(end_time),
+	interval_mi = 60, --MAX(datediff(mi, start_time, end_time)),
+	query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
+	query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
+	params = null,
+	query_id = null,
+	session_id = string_agg(cast(session_id as varchar(max)),','),
+	request_id = string_agg(cast(distributed_statement_id as varchar(max)),',')
+FROM queryinsights.exec_requests_history OUTER APPLY qpi.label(command) as l
+GROUP BY status, label, command  -- Don't use query_hash in Fabric
+GO
 
-CREATE OR ALTER VIEW qpi.query_stats_all AS
+CREATE OR ALTER VIEW qpi.db_query_exec_stats_ex_agg AS
 SELECT
 	text = REPLACE(command, '''''',''''),
 	label = TRIM('''' FROM l.label),
@@ -157,11 +209,12 @@ FROM queryinsights.exec_requests_history OUTER APPLY qpi.label(command) as l
 GROUP BY status, label, command  -- Don't use query_hash in Fabric
 GO
 
+	
 -----------------------------------------------------------------------------
 -- Table statistics
 -----------------------------------------------------------------------------
 
-CREATE OR ALTER VIEW qpi.table_stats AS
+CREATE OR ALTER VIEW qpi.db_table_stats AS
 SELECT
 	s.name,
 	table_name = OBJECT_NAME(s.object_id), 
@@ -184,7 +237,7 @@ FROM sys.stats s
 WHERE OBJECTPROPERTY(s.object_id, 'IsMSShipped') = 0
 GO
 
-CREATE OR ALTER VIEW qpi.table_stat_columns AS
+CREATE OR ALTER VIEW qpi.db_table_stat_columns AS
 SELECT	name = s.name,
 	table_name = OBJECT_NAME(s.object_id), 
 	column_name = c.name, 

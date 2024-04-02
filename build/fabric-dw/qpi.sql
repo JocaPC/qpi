@@ -79,7 +79,7 @@ CREATE OR ALTER  VIEW qpi.db_query_history
 AS
 SELECT  query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	request_id = distributed_statement_id,
-        elapsed_time_s = datediff(second, start_time, end_time),
+        duration_s = datediff(second, start_time, end_time),
         text = REPLACE(command, '''''',''''),
         status,
         start_time, end_time,

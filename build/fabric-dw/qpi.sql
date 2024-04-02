@@ -58,14 +58,16 @@ SELECT
 		memory_mb = granted_query_memory *8 /1000,
 		log_bytes = NULL,
 		tempdb_space = NULL,
-		query_text_id = NULL, query_id = NULL, plan_id = NULL,
-		database_id, connection_id, session_id, request_id = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64))), command,
+		query_text_id = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text),
+		query_hash = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text),
+		query_id = NULL, plan_id = NULL, database_id, connection_id, session_id,
+		request_id = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64))), command,
 		start_time,
 		end_time = null,
-		runtime_stats_interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
-									DATEPART(mm, (start_time)) * 10000 + 
-									DATEPART(dd, (start_time)) * 100 + 
-									DATEPART(hh, (start_time)),
+		interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
+				DATEPART(mm, (start_time)) * 10000 + 
+				DATEPART(dd, (start_time)) * 100 + 
+				DATEPART(hh, (start_time)),
 		interval_mi = 60,
 		sql_handle
 FROM    sys.dm_exec_requests
@@ -75,8 +77,8 @@ GO
 
 CREATE OR ALTER  VIEW qpi.db_query_history
 AS
-SELECT  query_text_id = query_hash,
-        request_id = distributed_statement_id,
+SELECT  query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
+	request_id = distributed_statement_id,
         elapsed_time_s = datediff(second, start_time, end_time),
         text = REPLACE(command, '''''',''''),
         status,
@@ -88,6 +90,7 @@ SELECT  query_text_id = query_hash,
 	interval_mi = 60,
 	row_count,
 	data_processed_mb = NULL,
+        query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
         transaction_id = NULL,
         error = NULL, error_code = NULL
 FROM [queryinsights].[exec_requests_history]
@@ -152,7 +155,7 @@ GROUP BY DATEPART(yyyy, start_time)  * 1000000 +
 	 status, label, command -- Don't use query_hash in Fabric
 GO
 	
-CREATE OR ALTER VIEW qpi.db_query_stats_agg AS
+CREATE OR ALTER VIEW qpi.db_query_agg_stats AS
 SELECT
 	text = REPLACE(command, '''''',''''),
 	label = TRIM('''' FROM l.label),
@@ -170,7 +173,7 @@ FROM queryinsights.exec_requests_history OUTER APPLY qpi.label(command) as l
 GROUP BY status, label, command  -- Don't use query_hash in Fabric
 GO
 
-CREATE OR ALTER VIEW qpi.db_query_stats_ex_agg AS
+CREATE OR ALTER VIEW qpi.db_query_agg_stats_ex AS
 SELECT
 	text = REPLACE(command, '''''',''''),
 	label = TRIM('''' FROM l.label),

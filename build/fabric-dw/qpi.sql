@@ -78,7 +78,7 @@ GO
 CREATE OR ALTER  VIEW qpi.db_query_history
 AS
 SELECT  query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
-	request_id = distributed_statement_id,
+        request_id = distributed_statement_id,
         duration_s = datediff(second, start_time, end_time),
         text = REPLACE(command, '''''',''''),
         status,
@@ -87,9 +87,9 @@ SELECT  query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_C
 			DATEPART(mm, (start_time)) * 10000 + 
 			DATEPART(dd, (start_time)) * 100 + 
 			DATEPART(hh, (start_time)),
-	interval_mi = 60,
-	row_count,
-	data_processed_mb = NULL,
+        interval_mi = 60,
+        row_count,
+        data_processed_mb = NULL,
         query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
         transaction_id = NULL,
         error = NULL, error_code = NULL

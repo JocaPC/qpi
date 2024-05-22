@@ -18,11 +18,11 @@ RETURNS TABLE
 AS RETURN (
     SELECT
         CASE
-            WHEN CHARINDEX('(LABEL=', @sql COLLATE Latin1_General_100_CI_AS_WS_SC_UTF8) > 0
+            WHEN CHARINDEX('(LABEL=', @sql COLLATE  Latin1_General_100_CI_AS_WS_SC_UTF8 ) > 0
                 THEN CAST(SUBSTRING(
                     @sql,
                     CHARINDEX('(LABEL=', @sql  COLLATE Latin1_General_100_CI_AS_WS_SC_UTF8 ) + 8, -- Skip the length of '(LABEL='
-                    CHARINDEX("')", @sql, CHARINDEX('(LABEL=', @sql COLLATE Latin1_General_100_CI_AS_WS_SC_UTF8) + 8)
+                    CHARINDEX("')", @sql, CHARINDEX('(LABEL=', @sql COLLATE  Latin1_General_100_CI_AS_WS_SC_UTF8 ) + 8)
 											- CHARINDEX('(LABEL=', @sql  COLLATE Latin1_General_100_CI_AS_WS_SC_UTF8 ) - 8
                 ) AS VARCHAR(8000))
             ELSE NULL
@@ -49,10 +49,11 @@ SELECT  query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_C
         query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
         transaction_id = NULL,
         error = NULL, error_code = NULL,
-		label
+        label
 FROM [queryinsights].[exec_requests_history]
 GO
 CREATE OR ALTER VIEW qpi.db_query_stats AS
+
 SELECT
 	interval_id =   DATEPART(yyyy, (start_time)) * 1000000 + 
 			DATEPART(mm, (start_time)) * 10000 + 
@@ -206,8 +207,6 @@ FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
 WHERE session_id <> @@SPID
 GO
-
-	
 -----------------------------------------------------------------------------
 -- Table statistics
 -----------------------------------------------------------------------------

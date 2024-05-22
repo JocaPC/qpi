@@ -49,7 +49,8 @@ SELECT  query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_C
         query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
         transaction_id = NULL,
         error = NULL, error_code = NULL,
-        label
+        label,
+        execution_type_desc = status
 FROM [queryinsights].[exec_requests_history]
 GO
 CREATE OR ALTER VIEW qpi.db_query_stats AS
@@ -179,15 +180,15 @@ SELECT
 		status,
 		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
 		elapsed_time_s = total_elapsed_time /1000.0,
-		cpu_time_s = cpu_time /1000.0,
-		logical_io_reads = logical_reads,
-		logical_io_writes = writes,
-		physical_io_reads = reads,
+		cpu_time_s = NULL, -- N/A in DW
+		logical_io_reads = NULL,
+		logical_io_writes = NULL,
+		physical_io_reads = NULL,
 		num_physical_io_reads = NULL,
 		clr_time = NULL,
-		dop,
-		row_count,
-		memory_mb = granted_query_memory *8 /1000,
+		dop = NULL,
+		row_count = NULL,
+		memory_mb = NULL,
 		log_bytes = NULL,
 		tempdb_space = NULL,
 		query_text_id = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text),
@@ -202,6 +203,7 @@ SELECT
 				DATEPART(hh, (start_time)),
 		interval_mi = 60,
 		sql_handle,
+		label,
 		execution_type_desc = status
 FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)

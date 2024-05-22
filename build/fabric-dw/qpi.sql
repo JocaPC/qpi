@@ -36,7 +36,7 @@ AS
 SELECT  query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
         request_id = distributed_statement_id,
         duration_s = datediff(second, start_time, end_time),
-        text = REPLACE(command, "''","'"),
+        text = REPLACE(command, "''","'") ,
         status,
         start_time, end_time,
         interval_id = 	DATEPART(yyyy, (start_time)) * 1000000 + 
@@ -84,7 +84,7 @@ CREATE OR ALTER VIEW qpi.db_query_agg_stats
 AS
 
 SELECT
-	text = REPLACE(command, "''","'"),
+	text = REPLACE(command, "''","'") ,
 	label = TRIM("'" FROM label),
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
@@ -109,7 +109,7 @@ SELECT
 			DATEPART(mm, (start_time)) * 10000 + 
 			DATEPART(dd, (start_time)) * 100 + 
 			DATEPART(hh, (start_time)),
-	text = REPLACE(command, "''","'"),
+	text = REPLACE(command, "''","'") ,
 	label = TRIM("'" FROM label), 
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
@@ -140,7 +140,7 @@ GO
 	
 CREATE OR ALTER VIEW qpi.db_query_agg_stats_ex AS
 SELECT
-	text = REPLACE(command, "''","'"),
+	text = REPLACE(command, "''","'") ,
 	label = TRIM("'" FROM label),
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),

@@ -60,7 +60,7 @@ SELECT
 			DATEPART(mm, (start_time)) * 10000 + 
 			DATEPART(dd, (start_time)) * 100 + 
 			DATEPART(hh, (start_time)),
-	text = REPLACE(command, "''","'"),  
+	text = REPLACE(command, "''","'") ,  
 	label = TRIM("'" FROM label), 
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),

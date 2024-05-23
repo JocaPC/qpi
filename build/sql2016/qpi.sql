@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------
---	SQL Server & Azure SQL (Database & Instance) - Query Performance Insights
---	Author: Jovan Popovic
+-- SQL Server 2016 - Query Performance Insights
+-- Author: Jovan Popovic
 --------------------------------------------------------------------------------
 
 SET QUOTED_IDENTIFIER OFF; -- Because I use "" as a string literal
@@ -13,11 +13,11 @@ GO
 -----------------------------------------------------------------------------
 -- Generic utilities
 -----------------------------------------------------------------------------
+
 CREATE  FUNCTION qpi.us2min(@microseconds bigint)
 RETURNS INT
 AS BEGIN RETURN ( @microseconds /1000 /1000 /60 ) END;
 GO
-
 ---
 ---	SELECT qpi.ago(2,10,15) => GETUTCDATE() - ( 2 days 10 hours 15 min)
 ---
@@ -53,6 +53,22 @@ AS BEGIN RETURN DATEADD(DAY, ((@time /10000) %100),
 					) END;
 GO
 
+CREATE  FUNCTION qpi.label(@sql VARCHAR(max))
+RETURNS TABLE
+AS RETURN (
+    SELECT
+        CASE
+            WHEN CHARINDEX('(LABEL=', @sql COLLATE  Latin1_General_100_CI_AS ) > 0
+                THEN CAST(SUBSTRING(
+                    @sql,
+                    CHARINDEX('(LABEL=', @sql  COLLATE  Latin1_General_100_CI_AS  ) + 8, -- Skip the length of '(LABEL='
+                    CHARINDEX("')", @sql, CHARINDEX('(LABEL=', @sql COLLATE  Latin1_General_100_CI_AS ) + 8)
+											- CHARINDEX('(LABEL=', @sql  COLLATE  Latin1_General_100_CI_AS  ) - 8
+                ) AS VARCHAR(8000))
+            ELSE NULL
+        END AS label
+);
+GO
 -----------------------------------------------------------------------------
 -- Core Database Query Store functionalities
 -----------------------------------------------------------------------------
@@ -107,9 +123,10 @@ return (
 GO
 CREATE  VIEW qpi.db_queries
 as
-select	text =  IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, (PATINDEX( '%)[^),]%', query_sql_text+')'))+1, LEN(query_sql_text)), query_sql_text) ,
-		params =  IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 2, (PATINDEX( '%)[^),]%', query_sql_text+')'))-2), "") ,
-		q.query_text_id, query_id, context_settings_id, q.query_hash
+select	q.query_text_id,
+		text = IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, (PATINDEX( '%)[^),]%', query_sql_text+')'))+1, LEN(query_sql_text)), query_sql_text) ,
+		params = IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 2, (PATINDEX( '%)[^),]%', query_sql_text+')'))-2), "") ,
+		query_id, context_settings_id, q.query_hash
 from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
 GO
@@ -260,21 +277,24 @@ CREATE  VIEW qpi.db_query_exec_stats_history
 AS SELECT * FROM  qpi.db_query_exec_stats_as_of(NULL);
 GO
 
-CREATE  VIEW qpi.db_query_stats
-AS
-SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
- logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash
+
+CREATE  VIEW qpi.db_query_stats AS
+SELECT interval_id =   DATEPART(yyyy, (qes.start_time)) * 1000000 +
+			DATEPART(mm, (qes.start_time)) * 10000 +
+			DATEPART(dd, (qes.start_time)) * 100 +
+			DATEPART(hh, (qes.start_time)),
+		text, params, status = qes.execution_type_desc, qes.query_id,
+		count_executions, duration_s, cpu_time_ms,
+ logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash, qes.execution_type_desc
 FROM qpi.db_query_exec_stats qes
 GO
 
-CREATE  VIEW
-qpi.db_query_stats_history
+CREATE  VIEW qpi.db_query_agg_stats
 AS
-SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
- logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash
+SELECT text, params, status = qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
+ logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash, qes.execution_type_desc
 FROM qpi.db_query_exec_stats_history qes
 GO
-
 --- Query comparison
 CREATE    function qpi.cmp_query_exec_stats (@query_id int, @date1 datetime2, @date2 datetime2)
 returns table
@@ -355,16 +375,18 @@ and (@date2 is null or rsi2.start_time <= @date2 and @date2 < rsi2.end_time)
 GO
 
 
+
 -----------------------------------------------------------------------------
 -- Core Server-level functionalities
 -----------------------------------------------------------------------------
 -- The list of currently executing queries that are probably not in Query Store.
+
 CREATE  VIEW qpi.queries
 AS
 SELECT
 		text =   IIF(LEFT(text,1) = '(', SUBSTRING( text, (PATINDEX( '%)[^),]%', text+')'))+1, LEN(text)), text) ,
 		params =  IIF(LEFT(text,1) = '(', SUBSTRING( text, 2, (PATINDEX( '%)[^),]%', text+')'))-2), "") ,
-		execution_type_desc = status COLLATE Latin1_General_CS_AS,
+		status,
 		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
 		elapsed_time_s = total_elapsed_time /1000.0,
 		cpu_time_s = cpu_time /1000.0,
@@ -380,13 +402,18 @@ SELECT
 		tempdb_space = NULL,
 		query_text_id = NULL, query_id = NULL, plan_id = NULL,
 		database_id, connection_id, session_id, request_id, command,
-		interval_mi = null,
 		start_time,
 		end_time = null,
-		sql_handle
+		interval_id = DATEPART(yyyy, (start_time)) * 1000000 +
+				DATEPART(mm, (start_time)) * 10000 +
+				DATEPART(dd, (start_time)) * 100 +
+				DATEPART(hh, (start_time)),
+		interval_mi = 60,
+		sql_handle,
+		execution_type_desc = status
 FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
-WHERE text NOT LIKE '%qpi.queries%'
+WHERE session_id <> @@SPID
 GO
 CREATE  VIEW qpi.query_stats
 AS
@@ -470,13 +497,13 @@ GO
 CREATE
 VIEW qpi.db_forced_queries
 AS
-	SELECT name = CONCAT('FPQ-', query_id), query_id, text = text COLLATE Latin1_General_100_CI_AS, forced_plan_id = plan_id, hints = null from qpi.db_query_plans where is_forced_plan = 1
+	SELECT name = CONCAT('FPQ-', query_id), query_id, text = text COLLATE  Latin1_General_100_CI_AS , forced_plan_id = plan_id, hints = null from qpi.db_query_plans where is_forced_plan = 1
 	UNION ALL
-	SELECT name, q.query_id, text = query_text COLLATE Latin1_General_100_CI_AS, forced_plan_id = null, hints
+	SELECT name, q.query_id, text = query_text COLLATE  Latin1_General_100_CI_AS , forced_plan_id = null, hints
 		FROM sys.plan_guides pg
 			LEFT JOIN qpi.db_queries q
-			ON q.text COLLATE Latin1_General_100_CI_AS
-			= pg.query_text COLLATE Latin1_General_100_CI_AS
+			ON q.text COLLATE  Latin1_General_100_CI_AS
+			= pg.query_text COLLATE  Latin1_General_100_CI_AS
 		WHERE is_disabled = 0
 GO
 
@@ -1438,3 +1465,54 @@ END
 GO
 SET QUOTED_IDENTIFIER ON;
 GO
+
+
+-----------------------------------------------------------------------------
+-- Table statistics
+-----------------------------------------------------------------------------
+
+CREATE  VIEW qpi.db_table_stats AS
+SELECT
+	s.name,
+	table_name = OBJECT_NAME(s.object_id),
+	sc.columns,
+	stats_method = s.stats_generation_method_desc,
+	auto_created,
+	auto_drop,
+	user_created,
+	is_incremental,
+	filter = IIF(has_filter=1, filter_definition, 'N/A')
+FROM sys.stats s
+	JOIN (SELECT	sc.stats_id, sc.object_id,
+					columns = STRING_AGG(cast(c.name as varchar(max)), ',')
+			FROM sys.stats_columns sc, sys.columns c
+			WHERE sc.object_id = c.object_id
+			AND sc.column_id = c.column_id
+			AND OBJECTPROPERTY(c.object_id, 'IsMSShipped') = 0
+			GROUP BY sc.stats_id, sc.object_id
+			) sc ON s.stats_id = sc.stats_id AND s.object_id = sc.object_id
+WHERE OBJECTPROPERTY(s.object_id, 'IsMSShipped') = 0
+GO
+
+CREATE  VIEW qpi.db_table_stat_columns AS
+SELECT	name = s.name,
+	table_name = OBJECT_NAME(s.object_id),
+	column_name = c.name,
+	type = CASE
+		WHEN t.name IN ('decimal', 'numeric') THEN CONCAT(t.name, '(', c.precision, ',', c.scale, ')')
+		WHEN t.name IN ('char', 'varchar', 'nchar', 'nvarchar', 'binary', 'varbinary', 'datetime2', 'time', 'datetimeoffset') THEN CONCAT(t.name, '(', IIF(c.max_length <> -1, CAST(c.max_length AS VARCHAR(100)), 'MAX'), ')')
+		ELSE t.name
+	END,
+	stats_method = s.stats_generation_method_desc,
+	auto_created,
+	auto_drop,
+	user_created,
+	is_incremental,
+	filter = IIF(has_filter=1, filter_definition, 'N/A')
+FROM sys.stats s,sys.stats_columns sc, sys.columns c, sys.types t, sys.objects o
+WHERE s.object_id = sc.object_id AND s.stats_id = sc.stats_id
+AND sc.column_id = c.column_id
+AND s.object_id = c.object_id
+AND o.object_id = c.object_id
+AND c.system_type_id = t.system_type_id
+AND OBJECTPROPERTY(s.object_id, 'IsMSShipped') = 0

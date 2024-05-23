@@ -174,8 +174,46 @@ SELECT
 		text =   substring(text, (statement_start_offset/2)+1, ((CASE statement_end_offset WHEN -1 THEN DATALENGTH(text) ELSE statement_end_offset END - statement_start_offset)/2) + 1) ,
 		params =  substring(text, 1, (statement_start_offset/2)) ,
 		status,
-		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
+		start_time,
 		elapsed_time_s = total_elapsed_time /1000.0,
+		database_id,
+		connection_id,
+		session_id,
+		request_id = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64))),
+		query_hash = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text),
+		command,
+		interval_id = DATEPART(yyyy, (start_time)) * 1000000 +
+				DATEPART(mm, (start_time)) * 10000 +
+				DATEPART(dd, (start_time)) * 100 +
+				DATEPART(hh, (start_time)),
+		interval_mi = 60,
+		label,
+		execution_type_desc = status
+FROM    sys.dm_exec_requests
+		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
+WHERE session_id <> @@SPID
+GO
+CREATE OR ALTER  VIEW qpi.queries_ex
+AS
+SELECT
+		text =   substring(text, (statement_start_offset/2)+1, ((CASE statement_end_offset WHEN -1 THEN DATALENGTH(text) ELSE statement_end_offset END - statement_start_offset)/2) + 1) ,
+		params =  substring(text, 1, (statement_start_offset/2)) ,
+		status,
+		start_time,
+		elapsed_time_s = total_elapsed_time /1000.0,
+		database_id,
+		connection_id,
+		session_id,
+		request_id = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64))), command,
+		query_hash = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text),
+		interval_id = DATEPART(yyyy, (start_time)) * 1000000 +
+				DATEPART(mm, (start_time)) * 10000 +
+				DATEPART(dd, (start_time)) * 100 +
+				DATEPART(hh, (start_time)),
+		interval_mi = 60,
+		sql_handle,
+		label,
+		execution_type_desc = status,
 		cpu_time_s = NULL, -- N/A in DW
 		logical_io_reads = NULL,
 		logical_io_writes = NULL,
@@ -186,21 +224,7 @@ SELECT
 		row_count = NULL,
 		memory_mb = NULL,
 		log_bytes = NULL,
-		tempdb_space = NULL,
-		query_text_id = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text),
-		query_hash = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text),
-		query_id = NULL, plan_id = NULL, database_id, connection_id, session_id,
-		request_id = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64))), command,
-		start_time,
-		end_time = null,
-		interval_id = DATEPART(yyyy, (start_time)) * 1000000 +
-				DATEPART(mm, (start_time)) * 10000 +
-				DATEPART(dd, (start_time)) * 100 +
-				DATEPART(hh, (start_time)),
-		interval_mi = 60,
-		sql_handle,
-		label,
-		execution_type_desc = status
+		tempdb_space = NULL
 FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
 WHERE session_id <> @@SPID

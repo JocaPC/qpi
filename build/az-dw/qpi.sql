@@ -216,33 +216,55 @@ AS
 SELECT
         text = command,
         params = NULL,
-		status,
-		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
-		elapsed_time_s = total_elapsed_time /1000.0,
-		cpu_time_s = NULL, -- N/A in DW
-		logical_io_reads = NULL,
-		logical_io_writes = NULL,
-		physical_io_reads = NULL,
-		num_physical_io_reads = NULL,
-		clr_time = NULL,
-		dop = NULL,
-		row_count = NULL,
-		memory_mb = NULL,
-		log_bytes = NULL,
-		tempdb_space = NULL,
-		query_text_id = NULL, query_id = NULL, plan_id = NULL,
-		database_id,
+        status,
+        start_time,
+        elapsed_time_s = total_elapsed_time /1000.0,
+        database_id,
         connection_id = client_correlation_id,
-        session_id, request_id, command,
-		interval_id = DATEPART(yyyy, (start_time)) * 1000000 +
-				DATEPART(mm, (start_time)) * 10000 +
-				DATEPART(dd, (start_time)) * 100 +
-				DATEPART(hh, (start_time)),
-		interval_mi = 60,
-		start_time,
-		end_time = null,
-		sql_handle = NULL,
-		execution_type_desc = status
+        session_id,
+        request_id,
+        query_hash = BINARY_CHECKSUM(command),
+        command = NULL,
+        interval_id = DATEPART(yyyy, (start_time)) * 1000000 +
+        				DATEPART(mm, (start_time)) * 10000 +
+				        DATEPART(dd, (start_time)) * 100 +
+        				DATEPART(hh, (start_time)),
+        interval_mi = 60,
+        execution_type_desc = status
+FROM    sys.dm_pdw_exec_requests
+WHERE  command NOT LIKE '%qpi.queries%' --  1  has custom session_id format so we cannot use session_id <> @@SPID
+AND status NOT IN ('Completed', 'Failed')
+GO
+CREATE  VIEW qpi.queries_ex
+AS
+SELECT
+        text = command,
+        params = NULL,
+        status,
+        elapsed_time_s = total_elapsed_time /1000.0,
+        database_id,
+        connection_id = client_correlation_id,
+        session_id,
+        request_id,
+        command = NULL,
+        interval_id = DATEPART(yyyy, (start_time)) * 1000000 +
+        				DATEPART(mm, (start_time)) * 10000 +
+        				DATEPART(dd, (start_time)) * 100 +
+        				DATEPART(hh, (start_time)),
+        interval_mi = 60,
+        execution_type_desc = status,
+        sql_handle = NULL,
+        cpu_time_s = NULL, -- N/A in DW
+        logical_io_reads = NULL,
+        logical_io_writes = NULL,
+        physical_io_reads = NULL,
+        num_physical_io_reads = NULL,
+        clr_time = NULL,
+        dop = NULL,
+        row_count = NULL,
+        memory_mb = NULL,
+        log_bytes = NULL,
+        tempdb_space = NULL
 FROM    sys.dm_pdw_exec_requests
 WHERE  command NOT LIKE '%qpi.queries%' --  1  has custom session_id format so we cannot use session_id <> @@SPID
 AND status NOT IN ('Completed', 'Failed')

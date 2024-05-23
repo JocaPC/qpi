@@ -701,8 +701,45 @@ SELECT
 		text =  QUERYTEXT(text),
 		params = QUERYPARAM(text),
 		status,
-		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
+		start_time,
 		elapsed_time_s = total_elapsed_time /1000.0, 
+		database_id,
+		connection_id,
+		session_id,
+		request_id,
+		query_hash,
+		command,
+		interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
+				DATEPART(mm, (start_time)) * 10000 + 
+				DATEPART(dd, (start_time)) * 100 + 
+				DATEPART(hh, (start_time)),
+		interval_mi = 60,
+		execution_type_desc = status
+FROM    sys.dm_exec_requests
+		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
+WHERE session_id <> @@SPID
+GO
+CREATE_OR_ALTER VIEW qpi.queries_ex
+AS
+SELECT  
+		text =  QUERYTEXT(text),
+		params = QUERYPARAM(text),
+		status,
+		start_time,
+		elapsed_time_s = total_elapsed_time /1000.0, 
+		database_id,
+		connection_id,
+		session_id,
+		request_id,
+		query_hash,
+		command,
+		interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
+				DATEPART(mm, (start_time)) * 10000 + 
+				DATEPART(dd, (start_time)) * 100 + 
+				DATEPART(hh, (start_time)),
+		interval_mi = 60,
+		sql_handle,
+		execution_type_desc = status,
 		cpu_time_s = cpu_time /1000.0, 		 
 		logical_io_reads = logical_reads,
 		logical_io_writes = writes,
@@ -713,18 +750,7 @@ SELECT
 		row_count, 
 		memory_mb = granted_query_memory *8 /1000, 
 		log_bytes = NULL,
-		tempdb_space = NULL,
-		query_text_id = NULL, query_id = NULL, plan_id = NULL,
-		database_id, connection_id, session_id, request_id, command,
-		start_time,
-		end_time = null,
-		interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
-				DATEPART(mm, (start_time)) * 10000 + 
-				DATEPART(dd, (start_time)) * 100 + 
-				DATEPART(hh, (start_time)),
-		interval_mi = 60,
-		sql_handle,
-		execution_type_desc = status
+		tempdb_space = NULL
 FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
 WHERE session_id <> @@SPID
@@ -736,33 +762,55 @@ AS
 SELECT  
         text = command,
         params = NULL,
-		status,
-		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
-		elapsed_time_s = total_elapsed_time /1000.0, 
-		cpu_time_s = NULL, -- N/A in DW		 
-		logical_io_reads = NULL,
-		logical_io_writes = NULL,
-		physical_io_reads = NULL, 
-		num_physical_io_reads = NULL, 
-		clr_time = NULL,
-		dop = NULL,
-		row_count = NULL, 
-		memory_mb = NULL, 
-		log_bytes = NULL,
-		tempdb_space = NULL,
-		query_text_id = NULL, query_id = NULL, plan_id = NULL,
-		database_id,
+        status,
+        start_time,
+        elapsed_time_s = total_elapsed_time /1000.0, 
+        database_id,
         connection_id = client_correlation_id,
-        session_id, request_id, command,
-		interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
-				DATEPART(mm, (start_time)) * 10000 + 
-				DATEPART(dd, (start_time)) * 100 + 
-				DATEPART(hh, (start_time)),
-		interval_mi = 60,
-		start_time,
-		end_time = null,
-		sql_handle = NULL,
-		execution_type_desc = status
+        session_id, 
+        request_id,
+        query_hash = BINARY_CHECKSUM(command),
+        command = NULL,
+        interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
+        				DATEPART(mm, (start_time)) * 10000 + 
+				        DATEPART(dd, (start_time)) * 100 + 
+        				DATEPART(hh, (start_time)),
+        interval_mi = 60,
+        execution_type_desc = status
+FROM    sys.dm_pdw_exec_requests
+WHERE  command NOT LIKE '%qpi.queries%' -- AzDw has custom session_id format so we cannot use session_id <> @@SPID
+AND status NOT IN ('Completed', 'Failed') 
+GO
+CREATE_OR_ALTER VIEW qpi.queries_ex
+AS
+SELECT  
+        text = command,
+        params = NULL,
+        status,
+        elapsed_time_s = total_elapsed_time /1000.0, 
+        database_id,
+        connection_id = client_correlation_id,
+        session_id,
+        request_id,
+        command = NULL,
+        interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
+        				DATEPART(mm, (start_time)) * 10000 + 
+        				DATEPART(dd, (start_time)) * 100 + 
+        				DATEPART(hh, (start_time)),
+        interval_mi = 60,
+        execution_type_desc = status,
+        sql_handle = NULL,
+        cpu_time_s = NULL, -- N/A in DW		 
+        logical_io_reads = NULL,
+        logical_io_writes = NULL,
+        physical_io_reads = NULL, 
+        num_physical_io_reads = NULL, 
+        clr_time = NULL,
+        dop = NULL,
+        row_count = NULL, 
+        memory_mb = NULL, 
+        log_bytes = NULL,
+        tempdb_space = NULL
 FROM    sys.dm_pdw_exec_requests
 WHERE  command NOT LIKE '%qpi.queries%' -- AzDw has custom session_id format so we cannot use session_id <> @@SPID
 AND status NOT IN ('Completed', 'Failed') 
@@ -776,8 +824,46 @@ SELECT
 		text =  QUERYTEXTSTD(text),
 		params = QUERYPARAMSTD(text),
 		status,
-		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
+		start_time,
+		elapsed_time_s = total_elapsed_time /1000.0,
+		database_id,
+		connection_id,
+		session_id,
+		request_id = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64))),
+		query_hash = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text),
+		command,
+		interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
+				DATEPART(mm, (start_time)) * 10000 + 
+				DATEPART(dd, (start_time)) * 100 + 
+				DATEPART(hh, (start_time)),
+		interval_mi = 60,
+		label,
+		execution_type_desc = status
+FROM    sys.dm_exec_requests
+		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
+WHERE session_id <> @@SPID
+GO
+CREATE_OR_ALTER VIEW qpi.queries_ex
+AS
+SELECT  
+		text =  QUERYTEXTSTD(text),
+		params = QUERYPARAMSTD(text),
+		status,
+		start_time,
 		elapsed_time_s = total_elapsed_time /1000.0, 
+		database_id,
+		connection_id,
+		session_id,
+		request_id = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64))), command,
+		query_hash = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text),
+		interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
+				DATEPART(mm, (start_time)) * 10000 + 
+				DATEPART(dd, (start_time)) * 100 + 
+				DATEPART(hh, (start_time)),
+		interval_mi = 60,
+		sql_handle,
+		label,
+		execution_type_desc = status,
 		cpu_time_s = NULL, -- N/A in DW		 
 		logical_io_reads = NULL,
 		logical_io_writes = NULL,
@@ -788,32 +874,19 @@ SELECT
 		row_count = NULL, 
 		memory_mb = NULL, 
 		log_bytes = NULL,
-		tempdb_space = NULL,
-		query_text_id = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text),
-		query_hash = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text),
-		query_id = NULL, plan_id = NULL, database_id, connection_id, session_id,
-		request_id = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64))), command,
-		start_time,
-		end_time = null,
-		interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
-				DATEPART(mm, (start_time)) * 10000 + 
-				DATEPART(dd, (start_time)) * 100 + 
-				DATEPART(hh, (start_time)),
-		interval_mi = 60,
-		sql_handle,
-		label,
-		execution_type_desc = status
+		tempdb_space = NULL
 FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
 WHERE session_id <> @@SPID
 GO
+
 #endif
 
 
 #if !(defined(AzDw) || defined(FabricDw)) 
 CREATE_OR_ALTER VIEW qpi.query_stats
 AS
-select q.text, q.params, q.query_id, q.session_id, q.request_id, q.memory_mb, q.start_time,
+select  q.text, q.params, q.session_id, q.request_id, q.memory_mb, q.start_time,
 		duration_s = CAST(ROUND( rs.total_elapsed_time/execution_count /1000.0 /1000.0, 2) AS NUMERIC(12,2)),
         cpu_time_ms = CAST(ROUND(rs.total_worker_time/execution_count, 1) AS NUMERIC(12,1)),
         logical_io_reads_kb = CAST(ROUND(rs.total_logical_reads/execution_count * 8 /1000.0, 2) AS NUMERIC(12,2)),
@@ -823,14 +896,14 @@ select q.text, q.params, q.query_id, q.session_id, q.request_id, q.memory_mb, q.
 		granted_mb = rs.total_grant_kb/execution_count /1024,
 		used_mb = rs.total_used_grant_kb/execution_count /1024,
 		ideal_mb = rs.total_ideal_grant_kb/execution_count /1024
-from qpi.queries q
+from qpi.queries_ex q
 left join sys.dm_exec_query_stats rs
 on q.sql_handle = rs.sql_handle
 GO
 
 CREATE_OR_ALTER VIEW qpi.query_mem_grants
 AS
-select q.text, q.params, q.query_id, q.session_id, q.request_id, q.memory_mb, q.start_time,
+select q.text, q.params, q.session_id, q.request_id, q.memory_mb, q.start_time,
 		required_mb = mg.required_memory_kb /1024,
 		requested_mb = mg.requested_memory_kb /1024,
 		granted_mb = mg.granted_memory_kb /1024,
@@ -840,7 +913,7 @@ select q.text, q.params, q.query_id, q.session_id, q.request_id, q.memory_mb, q.
 		timeout_s = mg.timeout_sec,
 		mg.wait_time_ms,
 		mg.is_next_candidate
-from qpi.queries q
+from qpi.queries_ex q
 left join sys.dm_exec_query_memory_grants mg
 on q.session_id = mg.session_id
 and q.request_id = mg.request_id

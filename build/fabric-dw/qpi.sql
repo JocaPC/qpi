@@ -171,12 +171,8 @@ GO
 CREATE OR ALTER  VIEW qpi.queries
 AS
 SELECT
-	text = substring(text, (statement_start_offset/2)+1,   
-								((CASE statement_end_offset  
-										WHEN -1 THEN DATALENGTH(text) 
-										ELSE statement_end_offset END 
-									- statement_start_offset)/2) + 1), 
-		params =  IIF(LEFT(text,1) = '(', SUBSTRING( text, 2, (PATINDEX( '%)[^),]%', text+')'))-2), '') ,
+		text =   substring(text, (statement_start_offset/2)+1, ((CASE statement_end_offset WHEN -1 THEN DATALENGTH(text) ELSE statement_end_offset END - statement_start_offset)/2) + 1) ,
+		params =  substring(text, 1, (statement_start_offset/2)) ,
 		status,
 		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
 		elapsed_time_s = total_elapsed_time /1000.0,

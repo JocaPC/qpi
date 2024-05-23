@@ -53,6 +53,7 @@ AS BEGIN RETURN DATEADD(DAY, ((@time /10000) %100),
 					) END;
 GO
 
+
 CREATE  FUNCTION qpi.label(@sql VARCHAR(max))
 RETURNS TABLE
 AS RETURN (

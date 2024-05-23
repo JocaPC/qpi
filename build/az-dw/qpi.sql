@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------
---	SQL Server & Azure SQL (Database & Instance) - Query Performance Insights
---	Author: Jovan Popovic
+-- Azure (Synapse) Datawarehouse/Synapse dedicated pool - Query Performance Insights
+-- Author: Jovan Popovic
 --------------------------------------------------------------------------------
 IF SCHEMA_ID('qpi') IS NULL
 	EXEC ('CREATE SCHEMA qpi');
@@ -9,10 +9,6 @@ GO
 -----------------------------------------------------------------------------
 -- Generic utilities
 -----------------------------------------------------------------------------
-CREATE  FUNCTION qpi.us2min(@microseconds bigint)
-RETURNS INT
-AS BEGIN RETURN ( @microseconds /1000 /1000 /60 ) END;
-GO
 -----------------------------------------------------------------------------
 -- Core Database Query Store functionalities
 -----------------------------------------------------------------------------
@@ -39,9 +35,10 @@ GO
 GO
 CREATE  VIEW qpi.db_queries
 as
-select	text =  CASE LEFT(query_sql_text,1) WHEN '(' THEN SUBSTRING( query_sql_text, (PATINDEX( '%)[^),]%', query_sql_text+')'))+1, LEN(query_sql_text)) ELSE query_sql_text END ,
-		params =  CASE LEFT(query_sql_text,1) WHEN '(' THEN SUBSTRING( query_sql_text, 2, (PATINDEX( '%)[^),]%', query_sql_text+')'))-2) ELSE 'N/A' END ,
-		q.query_text_id, query_id, context_settings_id, q.query_hash
+select	q.query_text_id,
+		text = CASE LEFT(query_sql_text,1) WHEN '(' THEN SUBSTRING( query_sql_text, (PATINDEX( '%)[^),]%', query_sql_text+')'))+1, LEN(query_sql_text)) ELSE query_sql_text END ,
+		params = CASE LEFT(query_sql_text,1) WHEN '(' THEN SUBSTRING( query_sql_text, 2, (PATINDEX( '%)[^),]%', query_sql_text+')'))-2) ELSE 'N/A' END ,
+		query_id, context_settings_id, q.query_hash
 from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
 GO
@@ -192,26 +189,34 @@ CREATE  VIEW qpi.db_query_exec_stats_history
 AS SELECT * FROM  qpi.db_query_exec_stats_as_of(NULL);
 GO
 
-CREATE  VIEW qpi.db_query_stats
-AS
-SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
- logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash
+
+CREATE  VIEW qpi.db_query_stats AS
+SELECT interval_id =   DATEPART(yyyy, (qes.start_time)) * 1000000 +
+			DATEPART(mm, (qes.start_time)) * 10000 +
+			DATEPART(dd, (qes.start_time)) * 100 +
+			DATEPART(hh, (qes.start_time)),
+		text, params, status = qes.execution_type_desc, qes.query_id,
+		count_executions, duration_s, cpu_time_ms,
+ logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash, qes.execution_type_desc
 FROM qpi.db_query_exec_stats qes
 GO
 
-CREATE  VIEW
-qpi.db_query_stats_history
+CREATE  VIEW qpi.db_query_agg_stats
 AS
-SELECT text, params, qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
- logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash
+SELECT text, params, status = qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
+ logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash, qes.execution_type_desc
 FROM qpi.db_query_exec_stats_history qes
 GO
+-----------------------------------------------------------------------------
+-- Core Server-level functionalities
+-----------------------------------------------------------------------------
+-- The list of currently executing queries that are probably not in Query Store.
 CREATE  VIEW qpi.queries
 AS
 SELECT
         text = command,
         params = NULL,
-		execution_type_desc = status COLLATE Latin1_General_CS_AS,
+		status,
 		first_execution_time = start_time, last_execution_time = NULL, count_executions = NULL,
 		elapsed_time_s = total_elapsed_time /1000.0,
 		cpu_time_s = NULL, -- N/A in DW
@@ -229,11 +234,16 @@ SELECT
 		database_id,
         connection_id = client_correlation_id,
         session_id, request_id, command,
-		interval_mi = null,
+		interval_id = DATEPART(yyyy, (start_time)) * 1000000 +
+				DATEPART(mm, (start_time)) * 10000 +
+				DATEPART(dd, (start_time)) * 100 +
+				DATEPART(hh, (start_time)),
+		interval_mi = 60,
 		start_time,
 		end_time = null,
-		sql_handle = NULL
+		sql_handle = NULL,
+		execution_type_desc = status
 FROM    sys.dm_pdw_exec_requests
-WHERE command NOT LIKE '%qpi.queries%'
-  AND status NOT IN ('Completed', 'Failed')
+WHERE  command NOT LIKE '%qpi.queries%' --  1  has custom session_id format so we cannot use session_id <> @@SPID
+AND status NOT IN ('Completed', 'Failed')
 GO

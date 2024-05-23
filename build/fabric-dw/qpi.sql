@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------
---	Fabric DW - Query Performance Insights
---	Author: Jovan Popovic
+-- Fabric DW - Query Performance Insights
+-- Author: Jovan Popovic
 --------------------------------------------------------------------------------
 
 SET QUOTED_IDENTIFIER OFF; -- Because I use "" as a string literal
@@ -13,7 +13,7 @@ GO
 -----------------------------------------------------------------------------
 -- Generic utilities
 -----------------------------------------------------------------------------
-CREATE OR ALTER FUNCTION qpi.label(@sql VARCHAR(max))
+CREATE OR ALTER  FUNCTION qpi.label(@sql VARCHAR(max))
 RETURNS TABLE
 AS RETURN (
     SELECT
@@ -21,9 +21,9 @@ AS RETURN (
             WHEN CHARINDEX('(LABEL=', @sql COLLATE  Latin1_General_100_CI_AS_WS_SC_UTF8 ) > 0
                 THEN CAST(SUBSTRING(
                     @sql,
-                    CHARINDEX('(LABEL=', @sql  COLLATE Latin1_General_100_CI_AS_WS_SC_UTF8 ) + 8, -- Skip the length of '(LABEL='
+                    CHARINDEX('(LABEL=', @sql  COLLATE  Latin1_General_100_CI_AS_WS_SC_UTF8  ) + 8, -- Skip the length of '(LABEL='
                     CHARINDEX("')", @sql, CHARINDEX('(LABEL=', @sql COLLATE  Latin1_General_100_CI_AS_WS_SC_UTF8 ) + 8)
-											- CHARINDEX('(LABEL=', @sql  COLLATE Latin1_General_100_CI_AS_WS_SC_UTF8 ) - 8
+											- CHARINDEX('(LABEL=', @sql  COLLATE  Latin1_General_100_CI_AS_WS_SC_UTF8  ) - 8
                 ) AS VARCHAR(8000))
             ELSE NULL
         END AS label
@@ -31,7 +31,7 @@ AS RETURN (
 GO
 
 
-CREATE OR ALTER  VIEW qpi.db_query_history
+CREATE OR ALTER   VIEW qpi.db_query_history
 AS
 SELECT  query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
         request_id = distributed_statement_id,
@@ -39,9 +39,9 @@ SELECT  query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_C
         text = REPLACE(command, "''","'") ,
         status,
         start_time, end_time,
-        interval_id = 	DATEPART(yyyy, (start_time)) * 1000000 + 
-			DATEPART(mm, (start_time)) * 10000 + 
-			DATEPART(dd, (start_time)) * 100 + 
+        interval_id = 	DATEPART(yyyy, (start_time)) * 1000000 +
+			DATEPART(mm, (start_time)) * 10000 +
+			DATEPART(dd, (start_time)) * 100 +
 			DATEPART(hh, (start_time)),
         interval_mi = 60,
         row_count,
@@ -53,15 +53,15 @@ SELECT  query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_C
         execution_type_desc = status
 FROM [queryinsights].[exec_requests_history]
 GO
-CREATE OR ALTER VIEW qpi.db_query_stats AS
+CREATE OR ALTER  VIEW qpi.db_query_stats AS
 
 SELECT
-	interval_id =   DATEPART(yyyy, (start_time)) * 1000000 + 
-			DATEPART(mm, (start_time)) * 10000 + 
-			DATEPART(dd, (start_time)) * 100 + 
+	interval_id =   DATEPART(yyyy, (start_time)) * 1000000 +
+			DATEPART(mm, (start_time)) * 10000 +
+			DATEPART(dd, (start_time)) * 100 +
 			DATEPART(hh, (start_time)),
-	text = REPLACE(command, "''","'") ,  
-	label = TRIM("'" FROM label), 
+	text =  REPLACE(command, "''","'") ,
+	label = TRIM("'" FROM label),
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
 	count_execution = COUNT(*),
@@ -73,18 +73,18 @@ SELECT
 	query_id = null,
 	execution_type_desc = status
 FROM queryinsights.exec_requests_history
-GROUP BY DATEPART(yyyy, start_time)  * 1000000 +  
-	 DATEPART(mm, start_time) * 10000 + 
-	 DATEPART(dd, start_time) * 100 + 
+GROUP BY DATEPART(yyyy, start_time)  * 1000000 +
+	 DATEPART(mm, start_time) * 10000 +
+	 DATEPART(dd, start_time) * 100 +
 	 DATEPART(hh, start_time),
 	 status, label, command -- Do not use query_hash in Fabric
 GO
 
-CREATE OR ALTER VIEW qpi.db_query_agg_stats
+CREATE OR ALTER  VIEW qpi.db_query_agg_stats
 AS
 
 SELECT
-	text = REPLACE(command, "''","'") ,
+	text =  REPLACE(command, "''","'") ,
 	label = TRIM("'" FROM label),
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
@@ -105,12 +105,12 @@ GO
 --- Extended statistics views
 CREATE OR ALTER VIEW qpi.db_query_stats_ex AS
 SELECT
-	interval_id = 	DATEPART(yyyy, (start_time)) * 1000000 + 
-			DATEPART(mm, (start_time)) * 10000 + 
-			DATEPART(dd, (start_time)) * 100 + 
+	interval_id = 	DATEPART(yyyy, (start_time)) * 1000000 +
+			DATEPART(mm, (start_time)) * 10000 +
+			DATEPART(dd, (start_time)) * 100 +
 			DATEPART(hh, (start_time)),
-	text = REPLACE(command, "''","'") ,
-	label = TRIM("'" FROM label), 
+	text =  REPLACE(command, "''","'") ,
+	label = TRIM("'" FROM label),
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
 	duration_min_s = CAST(ROUND(MIN(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
@@ -131,16 +131,16 @@ SELECT
 	request_id = string_agg(cast(distributed_statement_id as varchar(max)),','),
 	execution_type_desc = status
 FROM queryinsights.exec_requests_history
-GROUP BY DATEPART(yyyy, start_time)  * 1000000 +  
-	 DATEPART(mm, start_time) * 10000 + 
-	 DATEPART(dd, start_time) * 100 + 
+GROUP BY DATEPART(yyyy, start_time)  * 1000000 +
+	 DATEPART(mm, start_time) * 10000 +
+	 DATEPART(dd, start_time) * 100 +
 	 DATEPART(hh, start_time),
 	 status, label, command -- Do not use query_hash in Fabric
 GO
-	
+
 CREATE OR ALTER VIEW qpi.db_query_agg_stats_ex AS
 SELECT
-	text = REPLACE(command, "''","'") ,
+	text =  REPLACE(command, "''","'") ,
 	label = TRIM("'" FROM label),
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
@@ -193,9 +193,9 @@ SELECT
 		request_id = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64))), command,
 		start_time,
 		end_time = null,
-		interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
-				DATEPART(mm, (start_time)) * 10000 + 
-				DATEPART(dd, (start_time)) * 100 + 
+		interval_id = DATEPART(yyyy, (start_time)) * 1000000 +
+				DATEPART(mm, (start_time)) * 10000 +
+				DATEPART(dd, (start_time)) * 100 +
 				DATEPART(hh, (start_time)),
 		interval_mi = 60,
 		sql_handle,
@@ -209,10 +209,10 @@ GO
 -- Table statistics
 -----------------------------------------------------------------------------
 
-CREATE OR ALTER VIEW qpi.db_table_stats AS
+CREATE OR ALTER  VIEW qpi.db_table_stats AS
 SELECT
 	s.name,
-	table_name = OBJECT_NAME(s.object_id), 
+	table_name = OBJECT_NAME(s.object_id),
 	sc.columns,
 	stats_method = s.stats_generation_method_desc,
 	auto_created,
@@ -226,17 +226,17 @@ FROM sys.stats s
 			FROM sys.stats_columns sc, sys.columns c
 			WHERE sc.object_id = c.object_id
 			AND sc.column_id = c.column_id
-			AND OBJECTPROPERTY(c.object_id, 'IsMSShipped') = 0 
+			AND OBJECTPROPERTY(c.object_id, 'IsMSShipped') = 0
 			GROUP BY sc.stats_id, sc.object_id
 			) sc ON s.stats_id = sc.stats_id AND s.object_id = sc.object_id
 WHERE OBJECTPROPERTY(s.object_id, 'IsMSShipped') = 0
 GO
 
-CREATE OR ALTER VIEW qpi.db_table_stat_columns AS
+CREATE OR ALTER  VIEW qpi.db_table_stat_columns AS
 SELECT	name = s.name,
-	table_name = OBJECT_NAME(s.object_id), 
-	column_name = c.name, 
-	type = CASE 
+	table_name = OBJECT_NAME(s.object_id),
+	column_name = c.name,
+	type = CASE
 		WHEN t.name IN ('decimal', 'numeric') THEN CONCAT(t.name, '(', c.precision, ',', c.scale, ')')
 		WHEN t.name IN ('char', 'varchar', 'nchar', 'nvarchar', 'binary', 'varbinary', 'datetime2', 'time', 'datetimeoffset') THEN CONCAT(t.name, '(', IIF(c.max_length <> -1, CAST(c.max_length AS VARCHAR(100)), 'MAX'), ')')
 		ELSE t.name

@@ -33,29 +33,50 @@
 #define QUERYTEXT(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( query_sql_text, (PATINDEX( '%)[^),]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text)
 #define QUERYLIST(query_id,context_settings_id) string_agg(concat(query_id,'(', context_settings_id,')'),',')
 #define QUERYPARAM(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 2, (PATINDEX( '%)[^),]%', query_sql_text+')'))-2), "")
+#define QUERYDBTEXT(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', TRIM(')' FROM SUBSTRING( query_sql_text, (PATINDEX( '%)[^),]%', query_sql_text))+1, LEN(query_sql_text))), query_sql_text)
+#define QUERYDBPARAM(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 2, (PATINDEX( '%)[^),]%', query_sql_text+')'))-2), "")
 #endif
 #ifdef SQL2016
 #define CREATE_OR_ALTER CREATE
 #define QUERYTEXT(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, (PATINDEX( '%)[^),]%', query_sql_text+')'))+1, LEN(query_sql_text)), query_sql_text)
 #define QUERYLIST(query_id,context_settings_id) count(query_id)
 #define QUERYPARAM(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 2, (PATINDEX( '%)[^),]%', query_sql_text+')'))-2), "")
+#define QUERYDBTEXT(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, (PATINDEX( '%)[^),]%', query_sql_text+')'))+1, LEN(query_sql_text)), query_sql_text)
+#define QUERYDBPARAM(query_sql_text) IIF(LEFT(query_sql_text,1) = '(', SUBSTRING( query_sql_text, 2, (PATINDEX( '%)[^),]%', query_sql_text+')'))-2), "")
 #endif
 #ifdef AzDw
 #define CREATE_OR_ALTER CREATE
-#define QUERYTEXT(query_sql_text) CASE LEFT(query_sql_text,1) WHEN '(' THEN SUBSTRING( query_sql_text, (PATINDEX( '%)[^),]%', query_sql_text+')'))+1, LEN(query_sql_text)) ELSE query_sql_text END
+#define QUERYTEXT(query_sql_text) command
+#define QUERYPARAM(query_sql_text) NULL
+#define QUERYDBTEXT(query_sql_text) CASE LEFT(query_sql_text,1) WHEN '(' THEN SUBSTRING( query_sql_text, (PATINDEX( '%)[^),]%', query_sql_text+')'))+1, LEN(query_sql_text)) ELSE query_sql_text END
+#define QUERYDBPARAM(query_sql_text) CASE LEFT(query_sql_text,1) WHEN '(' THEN SUBSTRING( query_sql_text, 2, (PATINDEX( '%)[^),]%', query_sql_text+')'))-2) ELSE 'N/A' END
 #define QUERYLIST(query_id,context_settings_id) count(query_id)
-#define QUERYPARAM(query_sql_text) CASE LEFT(query_sql_text,1) WHEN '(' THEN SUBSTRING( query_sql_text, 2, (PATINDEX( '%)[^),]%', query_sql_text+')'))-2) ELSE 'N/A' END
+#define QUERYHASH_OVERRIDE  = BINARY_CHECKSUM(command)
+#define CONNECTIONID_OVERRIDE = NULL
 #define IIF(condition, true_exp, false_exp) (CASE condition WHEN 1 THEN true_exp ELSE false_exp END)
 #endif
 #ifdef FabricDw
-#define QUERYTEXT(query_sql_text) REPLACE(query_sql_text, "''","'")
-#define QUERYPARAM(query_sql_text) query_sql_text = NULL
-#define QUERYTEXTSTD(text)  substring(text, (statement_start_offset/2)+1, ((CASE statement_end_offset	WHEN -1 THEN DATALENGTH(text) ELSE statement_end_offset END - statement_start_offset)/2) + 1)
-#define QUERYPARAMSTD(query_sql_text) substring(text, 1, (statement_start_offset/2))
-
+#define QUERYDBTEXT(query_sql_text) REPLACE(query_sql_text, "''","'")
+#define QUERYDBPARAM(query_sql_text) query_sql_text = NULL
+#define QUERYTEXT(text)  substring(text, (statement_start_offset/2)+1, ((CASE statement_end_offset	WHEN -1 THEN DATALENGTH(text) ELSE statement_end_offset END - statement_start_offset)/2) + 1)
+#define QUERYPARAM(query_sql_text) substring(text, 1, (statement_start_offset/2))
+#define REQUESTID_OVERRIDE = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64)))
+#define QUERYHASH_OVERRIDE = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text)
 #endif
 #define COMPARE(a,b) (a) COLLATE CI_COLLATION = (b) COLLATE CI_COLLATION
 
+#ifndef REQUESTID_OVERRIDE
+#define REQUESTID_OVERRIDE
+#endif
+
+#ifndef QUERYHASH_OVERRIDE
+#define QUERYHASH_OVERRIDE
+#endif
+
+
+#ifndef CONNECTIONID_OVERRIDE
+#define CONNECTIONID_OVERRIDE
+#endif
 --------------------------------------------------------------------------------
 --HEADING- Query Performance Insights
 -- Author: Jovan Popovic
@@ -135,7 +156,7 @@ AS
 SELECT  query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
         request_id = distributed_statement_id,
         duration_s = datediff(second, start_time, end_time),
-        text =QUERYTEXT(command),
+        text =QUERYDBTEXT(command),
         status,
         start_time, end_time,
         interval_id = 	DATEPART(yyyy, (start_time)) * 1000000 +
@@ -210,8 +231,8 @@ GO
 CREATE_OR_ALTER VIEW qpi.db_queries
 as
 select	q.query_text_id,
-		text =QUERYTEXT(query_sql_text),
-		params =QUERYPARAM(query_sql_text),
+		text =QUERYDBTEXT(query_sql_text),
+		params =QUERYDBPARAM(query_sql_text),
 		query_id, context_settings_id, q.query_hash		
 from sys.query_store_query_text t
 	join sys.query_store_query q on t.query_text_id = q.query_text_id
@@ -323,8 +344,8 @@ FUNCTION qpi.db_query_plan_exec_stats_as_of(@date datetime2)
 returns table
 as return (
 select	t.query_text_id, q.query_id, 
-		text =  QUERYTEXT(t.query_sql_text),
-		params = QUERYPARAM(t.query_sql_text),
+		text =  QUERYDBTEXT(t.query_sql_text),
+		params = QUERYDBPARAM(t.query_sql_text),
 		rs.plan_id,
 		rs.execution_type_desc, 
         rs.count_executions,
@@ -370,8 +391,8 @@ FUNCTION qpi.db_query_plan_exec_stats_ex_as_of(@date datetime2)
 returns table
 as return (
 select	q.query_id, 
-		text =  QUERYTEXT(t.query_sql_text),
-		params = QUERYPARAM(t.query_sql_text),
+		text =  QUERYDBTEXT(t.query_sql_text),
+		params = QUERYDBPARAM(t.query_sql_text),
 		t.query_text_id, rsi.start_time, rsi.end_time,
 		rs.*, q.query_hash,
 		interval_mi = datediff(mi, rsi.start_time, rsi.end_time)
@@ -415,8 +436,8 @@ SELECT	qps.query_id, execution_type_desc,
 FROM qpi.db_query_plan_exec_stats_as_of(@date) qps 
 GROUP BY query_id, execution_type_desc
 )
-SELECT  text =  QUERYTEXT(t.query_sql_text),
-		params = QUERYPARAM(t.query_sql_text),
+SELECT  text =  QUERYDBTEXT(t.query_sql_text),
+		params = QUERYDBPARAM(t.query_sql_text),
 		qs.*,
 		t.query_text_id,
 		q.query_hash
@@ -444,7 +465,7 @@ SELECT
 			DATEPART(mm, (start_time)) * 10000 + 
 			DATEPART(dd, (start_time)) * 100 + 
 			DATEPART(hh, (start_time)),
-	text = QUERYTEXT(command),
+	text = QUERYDBTEXT(command),
 	label = TRIM("'" FROM label), 
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
@@ -496,7 +517,7 @@ CREATE_OR_ALTER VIEW qpi.db_query_agg_stats
 AS
 #if FabricDw
 SELECT
-	text = QUERYTEXT(command),
+	text = QUERYDBTEXT(command),
 	label = TRIM("'" FROM label),
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
@@ -543,7 +564,7 @@ SELECT
 			DATEPART(mm, (start_time)) * 10000 + 
 			DATEPART(dd, (start_time)) * 100 + 
 			DATEPART(hh, (start_time)),
-	text = QUERYTEXT(command),
+	text = QUERYDBTEXT(command),
 	label = TRIM("'" FROM label), 
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
@@ -574,7 +595,7 @@ GO
 
 CREATE OR ALTER VIEW qpi.db_query_agg_stats_ex AS
 SELECT
-	text = QUERYTEXT(command),
+	text = QUERYDBTEXT(command),
 	label = TRIM("'" FROM label),
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
@@ -694,7 +715,6 @@ GO
 -- Core Server-level functionalities
 -----------------------------------------------------------------------------
 -- The list of currently executing queries that are probably not in Query Store.
-#if !(defined(AzDw) || defined(FabricDw))
 CREATE_OR_ALTER VIEW qpi.queries
 AS
 SELECT  
@@ -704,10 +724,10 @@ SELECT
 		start_time,
 		elapsed_time_s = total_elapsed_time /1000.0, 
 		database_id,
-		connection_id,
+		connection_id CONNECTIONID_OVERRIDE,
 		session_id,
-		request_id,
-		query_hash,
+		request_id REQUESTID_OVERRIDE,
+		query_hash QUERYHASH_OVERRIDE,
 		command,
 		interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
 				DATEPART(mm, (start_time)) * 10000 + 
@@ -715,15 +735,25 @@ SELECT
 				DATEPART(hh, (start_time)),
 		interval_mi = 60,
 		execution_type_desc = status
+#ifdef FabricDw
+		, label
+#endif
+#ifndef AzDw
 FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
 WHERE session_id <> @@SPID
+#else
+FROM    sys.dm_pdw_exec_requests
+WHERE  command NOT LIKE '%qpi.queries%' -- AzDw has custom session_id format so we cannot use session_id <> @@SPID
+AND status NOT IN ('Completed', 'Failed') 
+#endif
 GO
+#if !(defined(AzDw) || defined(FabricDw))
 CREATE_OR_ALTER VIEW qpi.queries_ex
 AS
 SELECT  
-		text =  QUERYTEXT(text),
-		params = QUERYPARAM(text),
+		text =  QUERYDBTEXT(text),
+		params = QUERYDBPARAM(text),
 		status,
 		start_time,
 		elapsed_time_s = total_elapsed_time /1000.0, 
@@ -757,30 +787,6 @@ WHERE session_id <> @@SPID
 GO
 #endif
 #ifdef AzDw
-CREATE_OR_ALTER VIEW qpi.queries
-AS
-SELECT  
-        text = command,
-        params = NULL,
-        status,
-        start_time,
-        elapsed_time_s = total_elapsed_time /1000.0, 
-        database_id,
-        connection_id = client_correlation_id,
-        session_id, 
-        request_id,
-        query_hash = BINARY_CHECKSUM(command),
-        command = NULL,
-        interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
-        				DATEPART(mm, (start_time)) * 10000 + 
-				        DATEPART(dd, (start_time)) * 100 + 
-        				DATEPART(hh, (start_time)),
-        interval_mi = 60,
-        execution_type_desc = status
-FROM    sys.dm_pdw_exec_requests
-WHERE  command NOT LIKE '%qpi.queries%' -- AzDw has custom session_id format so we cannot use session_id <> @@SPID
-AND status NOT IN ('Completed', 'Failed') 
-GO
 CREATE_OR_ALTER VIEW qpi.queries_ex
 AS
 SELECT  
@@ -818,36 +824,11 @@ GO
 #endif
 
 #ifdef FabricDw
-CREATE_OR_ALTER VIEW qpi.queries
-AS
-SELECT  
-		text =  QUERYTEXTSTD(text),
-		params = QUERYPARAMSTD(text),
-		status,
-		start_time,
-		elapsed_time_s = total_elapsed_time /1000.0,
-		database_id,
-		connection_id,
-		session_id,
-		request_id = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64))),
-		query_hash = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text),
-		command,
-		interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
-				DATEPART(mm, (start_time)) * 10000 + 
-				DATEPART(dd, (start_time)) * 100 + 
-				DATEPART(hh, (start_time)),
-		interval_mi = 60,
-		label,
-		execution_type_desc = status
-FROM    sys.dm_exec_requests
-		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
-WHERE session_id <> @@SPID
-GO
 CREATE_OR_ALTER VIEW qpi.queries_ex
 AS
 SELECT  
-		text =  QUERYTEXTSTD(text),
-		params = QUERYPARAMSTD(text),
+		text =  QUERYTEXT(text),
+		params = QUERYPARAM(text),
 		status,
 		start_time,
 		elapsed_time_s = total_elapsed_time /1000.0, 

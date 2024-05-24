@@ -493,7 +493,6 @@ GO
 -- Core Server-level functionalities
 -----------------------------------------------------------------------------
 -- The list of currently executing queries that are probably not in Query Store.
-
 CREATE OR ALTER  VIEW qpi.queries
 AS
 SELECT
@@ -503,10 +502,10 @@ SELECT
 		start_time,
 		elapsed_time_s = total_elapsed_time /1000.0,
 		database_id,
-		connection_id,
+		connection_id  ,
 		session_id,
-		request_id,
-		query_hash,
+		request_id  ,
+		query_hash  ,
 		command,
 		interval_id = DATEPART(yyyy, (start_time)) * 1000000 +
 				DATEPART(mm, (start_time)) * 10000 +
@@ -518,6 +517,7 @@ FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
 WHERE session_id <> @@SPID
 GO
+
 CREATE OR ALTER  VIEW qpi.queries_ex
 AS
 SELECT

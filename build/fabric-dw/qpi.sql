@@ -177,18 +177,21 @@ SELECT
 		start_time,
 		elapsed_time_s = total_elapsed_time /1000.0,
 		database_id,
-		connection_id,
+		connection_id  ,
 		session_id,
-		request_id = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64))),
-		query_hash = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text),
+		request_id  = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64))) ,
+		query_hash  = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text) ,
 		command,
 		interval_id = DATEPART(yyyy, (start_time)) * 1000000 +
 				DATEPART(mm, (start_time)) * 10000 +
 				DATEPART(dd, (start_time)) * 100 +
 				DATEPART(hh, (start_time)),
 		interval_mi = 60,
-		label,
 		execution_type_desc = status
+
+		, label
+
+
 FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
 WHERE session_id <> @@SPID

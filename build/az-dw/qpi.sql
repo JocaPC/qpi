@@ -214,26 +214,27 @@ GO
 CREATE  VIEW qpi.queries
 AS
 SELECT
-        text = command,
-        params = NULL,
-        status,
-        start_time,
-        elapsed_time_s = total_elapsed_time /1000.0,
-        database_id,
-        connection_id = client_correlation_id,
-        session_id,
-        request_id,
-        query_hash = BINARY_CHECKSUM(command),
-        command = NULL,
-        interval_id = DATEPART(yyyy, (start_time)) * 1000000 +
-        				DATEPART(mm, (start_time)) * 10000 +
-				        DATEPART(dd, (start_time)) * 100 +
-        				DATEPART(hh, (start_time)),
-        interval_mi = 60,
-        execution_type_desc = status
+		text =   command ,
+		params =  NULL ,
+		status,
+		start_time,
+		elapsed_time_s = total_elapsed_time /1000.0,
+		database_id,
+		connection_id  = NULL ,
+		session_id,
+		request_id  ,
+		query_hash  = BINARY_CHECKSUM(command) ,
+		command,
+		interval_id = DATEPART(yyyy, (start_time)) * 1000000 +
+				DATEPART(mm, (start_time)) * 10000 +
+				DATEPART(dd, (start_time)) * 100 +
+				DATEPART(hh, (start_time)),
+		interval_mi = 60,
+		execution_type_desc = status
 FROM    sys.dm_pdw_exec_requests
 WHERE  command NOT LIKE '%qpi.queries%' --  1  has custom session_id format so we cannot use session_id <> @@SPID
 AND status NOT IN ('Completed', 'Failed')
+
 GO
 CREATE  VIEW qpi.queries_ex
 AS

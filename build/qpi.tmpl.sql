@@ -738,6 +738,7 @@ SELECT
 #ifdef FabricDw
 		, label
 #endif
+
 #ifndef AzDw
 FROM    sys.dm_exec_requests
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
@@ -748,121 +749,6 @@ WHERE  command NOT LIKE '%qpi.queries%' -- AzDw has custom session_id format so 
 AND status NOT IN ('Completed', 'Failed') 
 #endif
 GO
-#if !(defined(AzDw) || defined(FabricDw))
-CREATE_OR_ALTER VIEW qpi.queries_ex
-AS
-SELECT  
-		text =  QUERYDBTEXT(text),
-		params = QUERYDBPARAM(text),
-		status,
-		start_time,
-		elapsed_time_s = total_elapsed_time /1000.0, 
-		database_id,
-		connection_id,
-		session_id,
-		request_id,
-		query_hash,
-		command,
-		interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
-				DATEPART(mm, (start_time)) * 10000 + 
-				DATEPART(dd, (start_time)) * 100 + 
-				DATEPART(hh, (start_time)),
-		interval_mi = 60,
-		sql_handle,
-		execution_type_desc = status,
-		cpu_time_s = cpu_time /1000.0, 		 
-		logical_io_reads = logical_reads,
-		logical_io_writes = writes,
-		physical_io_reads = reads, 
-		num_physical_io_reads = NULL, 
-		clr_time = NULL,
-		dop,
-		row_count, 
-		memory_mb = granted_query_memory *8 /1000, 
-		log_bytes = NULL,
-		tempdb_space = NULL
-FROM    sys.dm_exec_requests
-		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
-WHERE session_id <> @@SPID
-GO
-#endif
-#ifdef AzDw
-CREATE_OR_ALTER VIEW qpi.queries_ex
-AS
-SELECT  
-        text = command,
-        params = NULL,
-        status,
-        elapsed_time_s = total_elapsed_time /1000.0, 
-        database_id,
-        connection_id = client_correlation_id,
-        session_id,
-        request_id,
-        command = NULL,
-        interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
-        				DATEPART(mm, (start_time)) * 10000 + 
-        				DATEPART(dd, (start_time)) * 100 + 
-        				DATEPART(hh, (start_time)),
-        interval_mi = 60,
-        execution_type_desc = status,
-        sql_handle = NULL,
-        cpu_time_s = NULL, -- N/A in DW		 
-        logical_io_reads = NULL,
-        logical_io_writes = NULL,
-        physical_io_reads = NULL, 
-        num_physical_io_reads = NULL, 
-        clr_time = NULL,
-        dop = NULL,
-        row_count = NULL, 
-        memory_mb = NULL, 
-        log_bytes = NULL,
-        tempdb_space = NULL
-FROM    sys.dm_pdw_exec_requests
-WHERE  command NOT LIKE '%qpi.queries%' -- AzDw has custom session_id format so we cannot use session_id <> @@SPID
-AND status NOT IN ('Completed', 'Failed') 
-GO
-#endif
-
-#ifdef FabricDw
-CREATE_OR_ALTER VIEW qpi.queries_ex
-AS
-SELECT  
-		text =  QUERYTEXT(text),
-		params = QUERYPARAM(text),
-		status,
-		start_time,
-		elapsed_time_s = total_elapsed_time /1000.0, 
-		database_id,
-		connection_id,
-		session_id,
-		request_id = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64))), command,
-		query_hash = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text),
-		interval_id = DATEPART(yyyy, (start_time)) * 1000000 + 
-				DATEPART(mm, (start_time)) * 10000 + 
-				DATEPART(dd, (start_time)) * 100 + 
-				DATEPART(hh, (start_time)),
-		interval_mi = 60,
-		sql_handle,
-		label,
-		execution_type_desc = status,
-		cpu_time_s = NULL, -- N/A in DW		 
-		logical_io_reads = NULL,
-		logical_io_writes = NULL,
-		physical_io_reads = NULL, 
-		num_physical_io_reads = NULL, 
-		clr_time = NULL,
-		dop = NULL,
-		row_count = NULL, 
-		memory_mb = NULL, 
-		log_bytes = NULL,
-		tempdb_space = NULL
-FROM    sys.dm_exec_requests
-		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
-WHERE session_id <> @@SPID
-GO
-
-#endif
-
 
 #if !(defined(AzDw) || defined(FabricDw)) 
 CREATE_OR_ALTER VIEW qpi.query_stats

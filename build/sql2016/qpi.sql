@@ -406,42 +406,7 @@ FROM    sys.dm_exec_requests
 WHERE session_id <> @@SPID
 GO
 
-CREATE  VIEW qpi.queries_ex
-AS
-SELECT
-		text =   IIF(LEFT(text,1) = '(', SUBSTRING( text, (PATINDEX( '%)[^),]%', text+')'))+1, LEN(text)), text) ,
-		params =  IIF(LEFT(text,1) = '(', SUBSTRING( text, 2, (PATINDEX( '%)[^),]%', text+')'))-2), "") ,
-		status,
-		start_time,
-		elapsed_time_s = total_elapsed_time /1000.0,
-		database_id,
-		connection_id,
-		session_id,
-		request_id,
-		query_hash,
-		command,
-		interval_id = DATEPART(yyyy, (start_time)) * 1000000 +
-				DATEPART(mm, (start_time)) * 10000 +
-				DATEPART(dd, (start_time)) * 100 +
-				DATEPART(hh, (start_time)),
-		interval_mi = 60,
-		sql_handle,
-		execution_type_desc = status,
-		cpu_time_s = cpu_time /1000.0,
-		logical_io_reads = logical_reads,
-		logical_io_writes = writes,
-		physical_io_reads = reads,
-		num_physical_io_reads = NULL,
-		clr_time = NULL,
-		dop,
-		row_count,
-		memory_mb = granted_query_memory *8 /1000,
-		log_bytes = NULL,
-		tempdb_space = NULL
-FROM    sys.dm_exec_requests
-		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
-WHERE session_id <> @@SPID
-GO
+
 CREATE  VIEW qpi.query_stats
 AS
 select  q.text, q.params, q.session_id, q.request_id, q.memory_mb, q.start_time,

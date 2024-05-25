@@ -230,6 +230,7 @@ SELECT
 				DATEPART(hh, (start_time)),
 		interval_mi = 60,
 		execution_type_desc = status
+		, sql_handle
 FROM    sys.dm_pdw_exec_requests
 WHERE  command NOT LIKE '%qpi.queries%' --  1  has custom session_id format so we cannot use session_id <> @@SPID
 AND status NOT IN ('Completed', 'Failed')

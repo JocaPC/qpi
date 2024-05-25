@@ -184,9 +184,9 @@ SELECT
 				DATEPART(hh, (start_time)),
 		interval_mi = 60,
 		execution_type_desc = status
+		, sql_handle
 
 		, label
-
 
 
 FROM    sys.dm_exec_requests

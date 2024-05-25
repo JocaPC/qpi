@@ -494,7 +494,7 @@ SELECT interval_id =   DATEPART(yyyy, (qes.start_time)) * 1000000 +
 			DATEPART(mm, (qes.start_time)) * 10000 + 
 			DATEPART(dd, (qes.start_time)) * 100 + 
 			DATEPART(hh, (qes.start_time)),
-		text, params, status = qes.execution_type_desc, qes.query_id,
+		text, status = qes.execution_type_desc, qes.query_id,
 		count_executions, duration_s, cpu_time_ms,
 #if !(defined(SQL2016) || defined(AzDw))
  wait_time_ms, 
@@ -525,7 +525,6 @@ SELECT
 	interval_mi = 60, --MAX(datediff(mi, start_time, end_time)),
 	query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
-	params = null,
 	query_id = null,
 	execution_type_desc = status
 FROM queryinsights.exec_requests_history
@@ -539,7 +538,7 @@ WITH ws AS(
 	GROUP BY query_id, start_time, execution_type_desc
 )
 #endif
-SELECT text, params, status = qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
+SELECT text, status = qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
 #if !(defined(SQL2016) || defined(AzDw))
  wait_time_ms, 
  log_bytes_used_kb,
@@ -578,7 +577,6 @@ SELECT
 	interval_mi = 60, --MAX(datediff(mi, start_time, end_time)),
 	query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
-	params = null,
 	query_id = null,
 	session_id = string_agg(cast(session_id as varchar(max)),','),
 	request_id = string_agg(cast(distributed_statement_id as varchar(max)),','),
@@ -609,7 +607,6 @@ SELECT
 	interval_mi = 60, --MAX(datediff(mi, start_time, end_time)),
 	query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
-	params = null,
 	query_id = null,
 	session_id = string_agg(cast(session_id as varchar(max)),','),
 	request_id = string_agg(cast(distributed_statement_id as varchar(max)),','),

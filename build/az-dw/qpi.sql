@@ -194,7 +194,7 @@ SELECT interval_id =   DATEPART(yyyy, (qes.start_time)) * 1000000 +
 			DATEPART(mm, (qes.start_time)) * 10000 +
 			DATEPART(dd, (qes.start_time)) * 100 +
 			DATEPART(hh, (qes.start_time)),
-		text, params, status = qes.execution_type_desc, qes.query_id,
+		text, status = qes.execution_type_desc, qes.query_id,
 		count_executions, duration_s, cpu_time_ms,
  logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash, qes.execution_type_desc
 FROM qpi.db_query_exec_stats qes
@@ -202,7 +202,7 @@ GO
 
 CREATE  VIEW qpi.db_query_agg_stats
 AS
-SELECT text, params, status = qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
+SELECT text, status = qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
  logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash, qes.execution_type_desc
 FROM qpi.db_query_exec_stats_history qes
 GO

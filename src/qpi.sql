@@ -363,7 +363,7 @@ SELECT interval_id =   DATEPART(yyyy, (qes.start_time)) * 1000000 +
 			DATEPART(mm, (qes.start_time)) * 10000 +
 			DATEPART(dd, (qes.start_time)) * 100 +
 			DATEPART(hh, (qes.start_time)),
-		text, params, status = qes.execution_type_desc, qes.query_id,
+		text, status = qes.execution_type_desc, qes.query_id,
 		count_executions, duration_s, cpu_time_ms,
 
  wait_time_ms,
@@ -389,7 +389,7 @@ WITH ws AS(
 	GROUP BY query_id, start_time, execution_type_desc
 )
 
-SELECT text, params, status = qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
+SELECT text, status = qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
 
  wait_time_ms,
  log_bytes_used_kb,

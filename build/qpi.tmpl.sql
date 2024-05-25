@@ -437,7 +437,6 @@ FROM qpi.db_query_plan_exec_stats_as_of(@date) qps
 GROUP BY query_id, execution_type_desc
 )
 SELECT  text =  QUERYDBTEXT(t.query_sql_text),
-		params = QUERYDBPARAM(t.query_sql_text),
 		qs.*,
 		t.query_text_id,
 		q.query_hash
@@ -474,7 +473,6 @@ SELECT
 	interval_mi = 60,
 	query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
-	params = null,
 	query_id = null,
 	execution_type_desc = status
 FROM queryinsights.exec_requests_history

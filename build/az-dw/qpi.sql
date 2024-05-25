@@ -169,7 +169,6 @@ FROM qpi.db_query_plan_exec_stats_as_of(@date) qps
 GROUP BY query_id, execution_type_desc
 )
 SELECT  text =   CASE LEFT(t.query_sql_text,1) WHEN '(' THEN SUBSTRING( t.query_sql_text, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))+1, LEN(t.query_sql_text)) ELSE t.query_sql_text END ,
-		params =  CASE LEFT(t.query_sql_text,1) WHEN '(' THEN SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))-2) ELSE 'N/A' END ,
 		qs.*,
 		t.query_text_id,
 		q.query_hash

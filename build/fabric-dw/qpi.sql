@@ -69,7 +69,6 @@ SELECT
 	interval_mi = 60,
 	query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
-	params = null,
 	query_id = null,
 	execution_type_desc = status
 FROM queryinsights.exec_requests_history

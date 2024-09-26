@@ -170,6 +170,8 @@ SELECT  query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_C
         transaction_id = NULL,
         error = NULL, error_code = NULL,
         label,
+        is_success = IIF(status = 'Succeeded', 1,0),
+		is_cached = result_cache_hit,
         execution_type_desc = status
 FROM [queryinsights].[exec_requests_history]
 GO
@@ -348,7 +350,7 @@ select	t.query_text_id, q.query_id,
 		params = QUERYDBPARAM(t.query_sql_text),
 		rs.plan_id,
 		rs.execution_type_desc, 
-        rs.count_executions,
+        executions = rs.count_executions,
         duration_s = CAST(ROUND( rs.avg_duration /1000.0 /1000.0, 2) AS NUMERIC(12,2)),
         cpu_time_ms = CAST(ROUND(rs.avg_cpu_time /1000.0, 1) AS NUMERIC(12,1)),
         logical_io_reads_kb = CAST(ROUND(rs.avg_logical_io_reads * 8 /1000.0, 2) AS NUMERIC(12,2)),
@@ -420,7 +422,7 @@ return (
 WITH query_stats as (
 SELECT	qps.query_id, execution_type_desc,
 		duration_s = AVG(duration_s),
-		count_executions = SUM(count_executions),
+		executions = SUM(executions),
 		cpu_time_ms = AVG(cpu_time_ms),
 		logical_io_reads_kb = AVG(logical_io_reads_kb),
 		logical_io_writes_kb = AVG(logical_io_writes_kb),
@@ -468,19 +470,21 @@ SELECT
 	label = TRIM("'" FROM label), 
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
-	count_executions = COUNT(*),
+	executions = COUNT(*),
 	row_count = AVG(row_count),
 	interval_mi = 60,
 	query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	query_id = null,
+	is_success = IIF(status = 'Succeeded', 1,0),
+	is_cached = result_cache_hit,
 	execution_type_desc = status
 FROM queryinsights.exec_requests_history
 GROUP BY DATEPART(yyyy, start_time)  * 1000000 +  
 	 DATEPART(mm, start_time) * 10000 + 
 	 DATEPART(dd, start_time) * 100 + 
 	 DATEPART(hh, start_time),
-	 status, label, command -- Do not use query_hash in Fabric
+	 status, label, result_cache_hit, command -- Do not use query_hash in Fabric
 #else
 #if !(defined(SQL2016) || defined(AzDw))
 WITH ws AS(
@@ -495,7 +499,7 @@ SELECT interval_id =   DATEPART(yyyy, (qes.start_time)) * 1000000 +
 			DATEPART(dd, (qes.start_time)) * 100 + 
 			DATEPART(hh, (qes.start_time)),
 		text, status = qes.execution_type_desc, qes.query_id,
-		count_executions, duration_s, cpu_time_ms,
+		executions, duration_s, cpu_time_ms,
 #if !(defined(SQL2016) || defined(AzDw))
  wait_time_ms, 
  log_bytes_used_kb,
@@ -519,16 +523,18 @@ SELECT
 	label = TRIM("'" FROM label),
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
-	count_executions = COUNT(*),
+	executions = COUNT(*),
 	row_count = AVG(row_count),
 	rows_per_sec =		CAST(ROUND(AVG(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
 	interval_mi = 60, --MAX(datediff(mi, start_time, end_time)),
 	query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	query_id = null,
+	is_success = IIF(status = 'Succeeded', 1,0),
+	is_cached = result_cache_hit,
 	execution_type_desc = status
 FROM queryinsights.exec_requests_history
-GROUP BY status, label, command  -- Do not use query_hash in Fabric
+GROUP BY status, label, result_cache_hit, command  -- Do not use query_hash in Fabric
 #else
 #if !(defined(SQL2016) || defined(AzDw))
 WITH ws AS(
@@ -538,7 +544,7 @@ WITH ws AS(
 	GROUP BY query_id, start_time, execution_type_desc
 )
 #endif
-SELECT text, status = qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
+SELECT text, status = qes.execution_type_desc, qes.query_id, executions, duration_s, cpu_time_ms,
 #if !(defined(SQL2016) || defined(AzDw))
  wait_time_ms, 
  log_bytes_used_kb,
@@ -565,28 +571,30 @@ SELECT
 	label = TRIM("'" FROM label), 
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
-	duration_min_s = CAST(ROUND(MIN(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
-	duration_max_s = CAST(ROUND(MAX(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
-	duration_dev_s = CAST(ROUND(STDEV(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
-	count_executions = COUNT(*),
+	min_duration_s = CAST(ROUND(MIN(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
+	max_duration_max_s = CAST(ROUND(MAX(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
+	stdev_duration_s = CAST(ROUND(STDEV(total_elapsed_time_ms/1000.),1) AS DECIMAL(10,1)),
+	executions = COUNT(*),
 	row_count = AVG(row_count),
 	rows_per_sec =		CAST(ROUND(AVG(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
-	rows_per_sec_min =	CAST(ROUND(MIN(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
-	rows_per_sec_max =	CAST(ROUND(MAX(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
-	rows_per_sec_stdev = CAST(ROUND(STDEV(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
+	min_rows_per_sec =	CAST(ROUND(MIN(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
+	max_rows_per_sec =	CAST(ROUND(MAX(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
+	stdev_rows_per_sec = CAST(ROUND(STDEV(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
 	interval_mi = 60, --MAX(datediff(mi, start_time, end_time)),
 	query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	query_id = null,
 	session_id = string_agg(cast(session_id as varchar(max)),','),
 	request_id = string_agg(cast(distributed_statement_id as varchar(max)),','),
+	is_success = IIF(status = 'Succeeded', 1,0),
+	is_cached = result_cache_hit,
 	execution_type_desc = status
 FROM queryinsights.exec_requests_history
 GROUP BY DATEPART(yyyy, start_time)  * 1000000 +  
 	 DATEPART(mm, start_time) * 10000 + 
 	 DATEPART(dd, start_time) * 100 + 
 	 DATEPART(hh, start_time),
-	 status, label, command -- Do not use query_hash in Fabric
+	 status, label, result_cache_hit, command -- Do not use query_hash in Fabric
 GO
 
 CREATE OR ALTER VIEW qpi.db_query_agg_stats_ex AS
@@ -595,24 +603,26 @@ SELECT
 	label = TRIM("'" FROM label),
 	status,
 	duration_s = CAST(ROUND(AVG(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
-	duration_min_s = CAST(ROUND(MIN(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
-	duration_max_s = CAST(ROUND(MAX(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
-	duration_dev_s = CAST(ROUND(STDEV(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
-	count_executions = COUNT(*),
+	min_duration_s = CAST(ROUND(MIN(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
+	max_duration_s = CAST(ROUND(MAX(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
+	stdev_duration_s = CAST(ROUND(STDEV(total_elapsed_time_ms)/1000.,1) AS DECIMAL(6,1)),
+	executions = COUNT(*),
 	row_count = AVG(row_count),
 	rows_per_sec =		CAST(ROUND(AVG(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
-	rows_per_sec_min =	CAST(ROUND(MIN(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
-	rows_per_sec_max =	CAST(ROUND(MAX(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
-	rows_per_sec_stdev = CAST(ROUND(STDEV(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
+	min_rows_per_sec =	CAST(ROUND(MIN(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
+	max_rows_per_sec =	CAST(ROUND(MAX(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
+	stdev_rows_per_sec = CAST(ROUND(STDEV(row_count/(IIF(total_elapsed_time_ms=0,NULL,total_elapsed_time_ms)/1000.)),1) AS DECIMAL(16,1)),
 	interval_mi = 60, --MAX(datediff(mi, start_time, end_time)),
 	query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	query_id = null,
 	session_id = string_agg(cast(session_id as varchar(max)),','),
 	request_id = string_agg(cast(distributed_statement_id as varchar(max)),','),
+	is_success = IIF(status = 'Succeeded', 1,0),
+	is_cached = result_cache_hit,
 	execution_type_desc = status
 FROM queryinsights.exec_requests_history
-GROUP BY status, label, command  -- Do not use query_hash in Fabric
+GROUP BY status, label, result_cache_hit, command  -- Do not use query_hash in Fabric
 GO
 
 
@@ -732,6 +742,7 @@ SELECT
 		execution_type_desc = status
 		, sql_handle
 #ifdef FabricDw
+		, is_success = IIF(status = 'Succeeded', 1,0)
 		, label
 #endif
 #ifndef AzDw

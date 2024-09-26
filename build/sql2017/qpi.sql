@@ -242,7 +242,7 @@ select	t.query_text_id, q.query_id,
 		params =  IIF(LEFT(t.query_sql_text,1) = '(', SUBSTRING( t.query_sql_text, 2, (PATINDEX( '%)[^),]%', t.query_sql_text+')'))-2), "") ,
 		rs.plan_id,
 		rs.execution_type_desc,
-        rs.count_executions,
+        executions = rs.count_executions,
         duration_s = CAST(ROUND( rs.avg_duration /1000.0 /1000.0, 2) AS NUMERIC(12,2)),
         cpu_time_ms = CAST(ROUND(rs.avg_cpu_time /1000.0, 1) AS NUMERIC(12,1)),
         logical_io_reads_kb = CAST(ROUND(rs.avg_logical_io_reads * 8 /1000.0, 2) AS NUMERIC(12,2)),
@@ -314,7 +314,7 @@ return (
 WITH query_stats as (
 SELECT	qps.query_id, execution_type_desc,
 		duration_s = AVG(duration_s),
-		count_executions = SUM(count_executions),
+		executions = SUM(executions),
 		cpu_time_ms = AVG(cpu_time_ms),
 		logical_io_reads_kb = AVG(logical_io_reads_kb),
 		logical_io_writes_kb = AVG(logical_io_writes_kb),
@@ -364,7 +364,7 @@ SELECT interval_id =   DATEPART(yyyy, (qes.start_time)) * 1000000 +
 			DATEPART(dd, (qes.start_time)) * 100 +
 			DATEPART(hh, (qes.start_time)),
 		text, status = qes.execution_type_desc, qes.query_id,
-		count_executions, duration_s, cpu_time_ms,
+		executions, duration_s, cpu_time_ms,
 
  wait_time_ms,
  log_bytes_used_kb,
@@ -389,7 +389,7 @@ WITH ws AS(
 	GROUP BY query_id, start_time, execution_type_desc
 )
 
-SELECT text, status = qes.execution_type_desc, qes.query_id, count_executions, duration_s, cpu_time_ms,
+SELECT text, status = qes.execution_type_desc, qes.query_id, executions, duration_s, cpu_time_ms,
 
  wait_time_ms,
  log_bytes_used_kb,

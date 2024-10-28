@@ -118,7 +118,7 @@ SELECT
 	status,
 	duration_s = CAST(ROUND(AVG(datediff(second, start_time, end_time)),1) AS DECIMAL(10,1)),
 	min_duration_s = CAST(ROUND(MIN(datediff(second, start_time, end_time)),1) AS DECIMAL(10,1)),
-	max_duration_max_s = CAST(ROUND(MAX(datediff(second, start_time, end_time)),1) AS DECIMAL(10,1)),
+	max_duration_s = CAST(ROUND(MAX(datediff(second, start_time, end_time)),1) AS DECIMAL(10,1)),
 	stdev_duration_s = CAST(ROUND(STDEV(datediff(second, start_time, end_time)),1) AS DECIMAL(10,1)),
 	executions = COUNT(*),
 	row_count = AVG(row_count),

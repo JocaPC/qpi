@@ -195,15 +195,23 @@ SELECT interval_id =   DATEPART(yyyy, (qes.start_time)) * 1000000 +
 			DATEPART(dd, (qes.start_time)) * 100 +
 			DATEPART(hh, (qes.start_time)),
 		text, status = qes.execution_type_desc, qes.query_id,
-		executions, duration_s, cpu_time_ms,
- logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash, qes.execution_type_desc
+		executions, duration_s, cpu_time_s = cpu_time_ms/1000.,
+		data_processed_mb = logical_io_reads_kb/1000.+physical_io_reads_kb/1000.
+ logical_io_reads_mb = logical_io_reads_kb/1000.,
+ logical_io_writes_mb = logical_io_writes_kb/1000.,
+ physical_io_reads_mb = physical_io_reads_kb/1000.,
+ clr_time_ms, qes.start_time, qes.query_hash, qes.execution_type_desc
 FROM qpi.db_query_exec_stats qes
 GO
 
 CREATE  VIEW qpi.db_query_agg_stats
 AS
-SELECT text, status = qes.execution_type_desc, qes.query_id, executions, duration_s, cpu_time_ms,
- logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash, qes.execution_type_desc
+SELECT text, status = qes.execution_type_desc, qes.query_id, executions, duration_s, cpu_time_s = cpu_time_ms/1000.,
+		data_processed_mb = logical_io_reads_kb/1000. + physical_io_reads_kb/1000.,
+ logical_io_reads_mb = logical_io_reads_kb/1000.,
+ logical_io_writes_mb = logical_io_writes_kb/1000.,
+ physical_io_reads_mb = physical_io_reads_kb/1000.,
+ clr_time_ms, qes.start_time, qes.query_hash, qes.execution_type_desc
 FROM qpi.db_query_exec_stats_history qes
 GO
 -----------------------------------------------------------------------------

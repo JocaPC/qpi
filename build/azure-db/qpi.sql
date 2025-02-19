@@ -364,12 +364,16 @@ SELECT interval_id =   DATEPART(yyyy, (qes.start_time)) * 1000000 +
 			DATEPART(dd, (qes.start_time)) * 100 +
 			DATEPART(hh, (qes.start_time)),
 		text, status = qes.execution_type_desc, qes.query_id,
-		executions, duration_s, cpu_time_ms,
+		executions, duration_s, cpu_time_s = cpu_time_ms/1000.,
+		data_processed_mb = logical_io_reads_kb/1000.+physical_io_reads_kb/1000.
 
  wait_time_ms,
  log_bytes_used_kb,
 
- logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash, qes.execution_type_desc
+ logical_io_reads_mb = logical_io_reads_kb/1000.,
+ logical_io_writes_mb = logical_io_writes_kb/1000.,
+ physical_io_reads_mb = physical_io_reads_kb/1000.,
+ clr_time_ms, qes.start_time, qes.query_hash, qes.execution_type_desc
 FROM qpi.db_query_exec_stats qes
 
 	LEFT JOIN ws ON qes.query_id = ws.query_id
@@ -389,12 +393,16 @@ WITH ws AS(
 	GROUP BY query_id, start_time, execution_type_desc
 )
 
-SELECT text, status = qes.execution_type_desc, qes.query_id, executions, duration_s, cpu_time_ms,
+SELECT text, status = qes.execution_type_desc, qes.query_id, executions, duration_s, cpu_time_s = cpu_time_ms/1000.,
+		data_processed_mb = logical_io_reads_kb/1000. + physical_io_reads_kb/1000.,
 
  wait_time_ms,
  log_bytes_used_kb,
 
- logical_io_reads_kb, logical_io_writes_kb, physical_io_reads_kb, clr_time_ms, qes.start_time, qes.query_hash, qes.execution_type_desc
+ logical_io_reads_mb = logical_io_reads_kb/1000.,
+ logical_io_writes_mb = logical_io_writes_kb/1000.,
+ physical_io_reads_mb = physical_io_reads_kb/1000.,
+ clr_time_ms, qes.start_time, qes.query_hash, qes.execution_type_desc
 FROM qpi.db_query_exec_stats_history qes
 
 	LEFT JOIN ws ON qes.query_id = ws.query_id

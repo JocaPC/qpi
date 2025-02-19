@@ -45,13 +45,16 @@ SELECT  query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_C
 			DATEPART(hh, (start_time)),
         interval_mi = 60,
         row_count,
-        data_processed_mb = NULL,
+        data_processed_mb = data_scanned_memory_mb + data_scanned_disk_mb + data_scanned_remote_storage_mb,
         query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
         transaction_id = NULL,
         error = NULL, error_code = NULL,
         label,
         is_success = IIF(status = 'Succeeded', 1,0),
-		is_cached = result_cache_hit,
+        is_cached = result_cache_hit,
+        logical_io_reads_mb = data_scanned_memory_mb + data_scanned_disk_mb,
+        physical_io_reads_mb = data_scanned_remote_storage_mb,
+        cpu_time_s = allocated_cpu_time_ms/1000.,
         execution_type_desc = status
 FROM [queryinsights].[exec_requests_history]
 GO
@@ -66,6 +69,10 @@ SELECT
 	label = TRIM("'" FROM label),
 	status,
 	duration_s = CAST(ROUND(AVG(datediff(second, start_time, end_time)),1) AS DECIMAL(10,1)),
+	cpu_time_s = AVG(allocated_cpu_time_ms/1000.),
+	data_processed_mb = AVG(data_scanned_memory_mb + data_scanned_disk_mb + data_scanned_remote_storage_mb),
+	logical_io_reads_mb = AVG(data_scanned_memory_mb + data_scanned_disk_mb),
+	physical_io_reads_mb = AVG(data_scanned_remote_storage_mb),
 	executions = COUNT(*),
 	row_count = AVG(row_count),
 	interval_mi = 60,
@@ -91,6 +98,10 @@ SELECT
 	label = TRIM("'" FROM label),
 	status,
 	duration_s = CAST(ROUND(AVG(datediff(second, start_time, end_time)),1) AS DECIMAL(6,1)),
+	cpu_time_s = AVG(allocated_cpu_time_ms/1000.),
+	data_processed_mb = AVG(data_scanned_memory_mb + data_scanned_disk_mb + data_scanned_remote_storage_mb),
+	logical_io_reads_mb = AVG(data_scanned_memory_mb + data_scanned_disk_mb),
+	physical_io_reads_mb = AVG(data_scanned_remote_storage_mb),
 	executions = COUNT(*),
 	row_count = AVG(row_count),
 	rows_per_sec =		CAST(ROUND(AVG(row_count/(IIF(datediff(second, start_time, end_time)=0,NULL,datediff(second, start_time, end_time)))),1) AS DECIMAL(16,1)),
@@ -120,12 +131,35 @@ SELECT
 	min_duration_s = CAST(ROUND(MIN(datediff(second, start_time, end_time)),1) AS DECIMAL(10,1)),
 	max_duration_s = CAST(ROUND(MAX(datediff(second, start_time, end_time)),1) AS DECIMAL(10,1)),
 	stdev_duration_s = CAST(ROUND(STDEV(datediff(second, start_time, end_time)),1) AS DECIMAL(10,1)),
+
+	data_processed_mb = CAST(ROUND(AVG(data_scanned_memory_mb + data_scanned_disk_mb + data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+	min_data_processed_mb = CAST(ROUND(MIN(data_scanned_memory_mb + data_scanned_disk_mb + data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+	max_data_processed_mb = CAST(ROUND(MAX(data_scanned_memory_mb + data_scanned_disk_mb + data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+	stdev_data_processed_mb = CAST(ROUND(STDEV(data_scanned_memory_mb + data_scanned_disk_mb + data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+
+	cpu_time_s = CAST(ROUND(AVG(allocated_cpu_time_ms/1000.),1) AS DECIMAL(10,1)),
+	min_cpu_time_s = CAST(ROUND(MIN(allocated_cpu_time_ms/1000.),1) AS DECIMAL(10,1)),
+	max_cpu_time_s = CAST(ROUND(MAX(allocated_cpu_time_ms/1000.),1) AS DECIMAL(10,1)),
+	stdev_cpu_time_s = CAST(ROUND(STDEV(allocated_cpu_time_ms/1000.),1) AS DECIMAL(10,1)),
+
+	logical_io_reads_mb = CAST(ROUND(AVG(data_scanned_memory_mb + data_scanned_disk_mb),1) AS DECIMAL(10,1)),
+	min_logical_io_reads_mb = CAST(ROUND(MIN(data_scanned_memory_mb + data_scanned_disk_mb),1) AS DECIMAL(10,1)),
+	max_logical_io_reads_mb = CAST(ROUND(MAX(data_scanned_memory_mb + data_scanned_disk_mb),1) AS DECIMAL(10,1)),
+	stdev_logical_io_reads_mb = CAST(ROUND(STDEV(data_scanned_memory_mb + data_scanned_disk_mb),1) AS DECIMAL(10,1)),
+
+	physical_io_reads_mb = CAST(ROUND(AVG(data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+	min_physical_io_reads_mb = CAST(ROUND(MIN(data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+	max_physical_io_reads_mb = CAST(ROUND(MAX(data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+	stdev_physical_io_reads_mb = CAST(ROUND(STDEV(data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+
 	executions = COUNT(*),
 	row_count = AVG(row_count),
+
 	rows_per_sec =		CAST(ROUND(AVG(row_count/(IIF(datediff(second, start_time, end_time)=0,NULL,datediff(second, start_time, end_time)))),1) AS DECIMAL(16,1)),
 	min_rows_per_sec =	CAST(ROUND(MIN(row_count/(IIF(datediff(second, start_time, end_time)=0,NULL,datediff(second, start_time, end_time)))),1) AS DECIMAL(16,1)),
 	max_rows_per_sec =	CAST(ROUND(MAX(row_count/(IIF(datediff(second, start_time, end_time)=0,NULL,datediff(second, start_time, end_time)))),1) AS DECIMAL(16,1)),
 	stdev_rows_per_sec = CAST(ROUND(STDEV(row_count/(IIF(datediff(second, start_time, end_time)=0,NULL,datediff(second, start_time, end_time)))),1) AS DECIMAL(16,1)),
+
 	interval_mi = 60, --MAX(datediff(mi, start_time, end_time)),
 	query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
@@ -148,16 +182,40 @@ SELECT
 	text =  REPLACE(command, "''","'") ,
 	label = TRIM("'" FROM label),
 	status,
+
 	duration_s = CAST(ROUND(AVG(datediff(second, start_time, end_time)),1) AS DECIMAL(6,1)),
 	min_duration_s = CAST(ROUND(MIN(datediff(second, start_time, end_time)),1) AS DECIMAL(6,1)),
 	max_duration_s = CAST(ROUND(MAX(datediff(second, start_time, end_time)),1) AS DECIMAL(6,1)),
 	stdev_duration_s = CAST(ROUND(STDEV(datediff(second, start_time, end_time)),1) AS DECIMAL(6,1)),
+
+	data_processed_mb = CAST(ROUND(AVG(data_scanned_memory_mb + data_scanned_disk_mb + data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+	min_data_processed_mb = CAST(ROUND(MIN(data_scanned_memory_mb + data_scanned_disk_mb + data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+	max_data_processed_mb = CAST(ROUND(MAX(data_scanned_memory_mb + data_scanned_disk_mb + data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+	stdev_data_processed_mb = CAST(ROUND(STDEV(data_scanned_memory_mb + data_scanned_disk_mb + data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+
+	logical_io_reads_mb = CAST(ROUND(AVG(data_scanned_memory_mb + data_scanned_disk_mb),1) AS DECIMAL(10,1)),
+	min_logical_io_reads_mb = CAST(ROUND(MIN(data_scanned_memory_mb + data_scanned_disk_mb),1) AS DECIMAL(10,1)),
+	max_logical_io_reads_mb = CAST(ROUND(MAX(data_scanned_memory_mb + data_scanned_disk_mb),1) AS DECIMAL(10,1)),
+	stdev_logical_io_reads_mb = CAST(ROUND(STDEV(data_scanned_memory_mb + data_scanned_disk_mb),1) AS DECIMAL(10,1)),
+
+	physical_io_reads_mb = CAST(ROUND(AVG(data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+	min_physical_io_reads_mb = CAST(ROUND(MIN(data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+	max_physical_io_reads_mb = CAST(ROUND(MAX(data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+	stdev_physical_io_reads_mb = CAST(ROUND(STDEV(data_scanned_remote_storage_mb),1) AS DECIMAL(10,1)),
+
+	cpu_time_s = CAST(ROUND(AVG(allocated_cpu_time_ms/1000.),1) AS DECIMAL(10,1)),
+	min_cpu_time_s = CAST(ROUND(MIN(allocated_cpu_time_ms/1000.),1) AS DECIMAL(10,1)),
+	max_cpu_time_s = CAST(ROUND(MAX(allocated_cpu_time_ms/1000.),1) AS DECIMAL(10,1)),
+	stdev_cpu_time_s = CAST(ROUND(STDEV(allocated_cpu_time_ms/1000.),1) AS DECIMAL(10,1)),
+
 	executions = COUNT(*),
 	row_count = AVG(row_count),
+
 	rows_per_sec =		CAST(ROUND(AVG(row_count/(IIF(datediff(second, start_time, end_time)=0,NULL,datediff(second, start_time, end_time)))),1) AS DECIMAL(16,1)),
 	min_rows_per_sec =	CAST(ROUND(MIN(row_count/(IIF(datediff(second, start_time, end_time)=0,NULL,datediff(second, start_time, end_time)))),1) AS DECIMAL(16,1)),
 	max_rows_per_sec =	CAST(ROUND(MAX(row_count/(IIF(datediff(second, start_time, end_time)=0,NULL,datediff(second, start_time, end_time)))),1) AS DECIMAL(16,1)),
 	stdev_rows_per_sec = CAST(ROUND(STDEV(row_count/(IIF(datediff(second, start_time, end_time)=0,NULL,datediff(second, start_time, end_time)))),1) AS DECIMAL(16,1)),
+
 	interval_mi = 60, --MAX(datediff(mi, start_time, end_time)),
 	query_text_id = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),
 	query_hash = CAST(HASHBYTES('MD4', command) AS BIGINT)<<32 + BINARY_CHECKSUM(command),

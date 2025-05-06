@@ -237,12 +237,12 @@ AS
 SELECT
 		text =   substring(text, (statement_start_offset/2)+1, ((CASE statement_end_offset WHEN -1 THEN DATALENGTH(text) ELSE statement_end_offset END - statement_start_offset)/2) + 1) ,
 		params =  substring(text, 1, (statement_start_offset/2)) ,
-		status,
+		r.status,
 		start_time,
-		elapsed_time_s = total_elapsed_time /1000.0,
-		database_id,
+		elapsed_time_s = r.total_elapsed_time /1000.0,
+		r.database_id,
 		connection_id  ,
-		session_id,
+		r.session_id,
 		request_id  = ISNULL(dist_statement_id, CAST(request_id AS VARCHAR(64))) ,
 		query_hash  = CAST(HASHBYTES('MD4', text) AS BIGINT)<<32 + BINARY_CHECKSUM(text) ,
 		command,
@@ -251,16 +251,16 @@ SELECT
 				DATEPART(dd, (start_time)) * 100 +
 				DATEPART(hh, (start_time)),
 		interval_mi = 60,
-		execution_type_desc = status
+		execution_type_desc = r.status
 		, sql_handle
-
-		, is_success = IIF(status = 'Succeeded', 1,0)
+		, is_success = IIF(r.status = 'Succeeded', 1,0)
 		, label
-
-
-FROM    sys.dm_exec_requests
+		, client = concat(s.program_name, IIF(s.host_name='', '', '@' + s.host_name), ' [', client_interface_name, ']')
+		, login = iif(s.login_name = s.original_login_name, s.login_name, concat(s.login_name,'(',s.original_login_name,')'))
+FROM    sys.dm_exec_requests r
 		CROSS APPLY sys.dm_exec_sql_text(sql_handle)
-WHERE session_id <> @@SPID
+		JOIN sys.dm_exec_sessions s on r.session_id = s.session_id
+WHERE r.session_id <> @@SPID
 GO
 -----------------------------------------------------------------------------
 -- Table statistics

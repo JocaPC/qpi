@@ -365,7 +365,7 @@ SELECT interval_id =   DATEPART(yyyy, (qes.start_time)) * 1000000 +
 			DATEPART(hh, (qes.start_time)),
 		text, status = qes.execution_type_desc, qes.query_id,
 		executions, duration_s, cpu_time_s = cpu_time_ms/1000.,
-		data_processed_mb = logical_io_reads_kb/1000.+physical_io_reads_kb/1000.
+		data_processed_mb = logical_io_reads_kb/1000.+physical_io_reads_kb/1000.,
 
  wait_time_ms,
  log_bytes_used_kb,
